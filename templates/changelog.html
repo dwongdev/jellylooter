@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Changelog - JellyLooter</title>
+    <style>
+        :root { --bg: #121212; --card: #1f1f1f; --accent: #7289da; --text: #f0f0f0; --border: #333; }
+        [data-theme="light"] { --bg: #f5f6fa; --card: #ffffff; --accent: #007bff; --text: #212529; --border: #dee2e6; }
+        
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; transition: 0.3s; }
+        .panel { background: var(--card); padding: 30px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        
+        h1 { color: var(--accent); border-bottom: 2px solid var(--border); padding-bottom: 15px; margin-top: 0; }
+        button { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { opacity: 0.9; }
+
+        .version-block { margin-bottom: 30px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+        .version-block:last-child { border-bottom: none; }
+        .ver-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+        .ver-tag { font-size: 1.4rem; font-weight: bold; color: var(--accent); }
+        .ver-date { opacity: 0.6; font-size: 0.9rem; }
+        
+        ul { padding-left: 20px; line-height: 1.6; }
+        li { margin-bottom: 5px; }
+        .tag-new { background: #2ecc71; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; margin-right: 5px; vertical-align: middle; }
+        .tag-fix { background: #e74c3c; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; margin-right: 5px; vertical-align: middle; }
+    </style>
+</head>
+<body>
+    <div style="margin-bottom: 20px;">
+        <button onclick="window.location.href='/'">← Back to Dashboard</button>
+    </div>
+
+    <div class="panel">
+        <h1>Version History</h1>
+
+        <div class="version-block">
+            <div class="ver-header">
+                <span class="ver-tag">v1.12.0</span>
+                <span class="ver-date">Current Release</span>
+            </div>
+            <ul>
+                <li><span class="tag-new">New</span> Added dedicated Changelog page.</li>
+                <li><span class="tag-fix">Fix</span> Reduced library scan chunk size to 50 items to prevent timeouts on large libraries.</li>
+                <li><span class="tag-fix">Fix</span> Resolved issue where Local Server details would disappear on refresh.</li>
+                <li><span class="tag-new">New</span> Added visual progress bar for library scans.</li>
+            </ul>
+        </div>
+
+        <div class="version-block">
+            <div class="ver-header"><span class="ver-tag">v1.11.0</span></div>
+            <ul>
+                <li><span class="tag-new">New</span> Added "Refresh My Library" button to manually trigger local caching.</li>
+                <li><span class="tag-new">New</span> Added "Saved Server" card state for better visibility of connections.</li>
+            </ul>
+        </div>
+
+        <div class="version-block">
+            <div class="ver-header"><span class="ver-tag">v1.10.0</span></div>
+            <ul>
+                <li><span class="tag-new">New</span> <strong>Recursive Downloads:</strong> Selecting a Series or Season folder now automatically finds and downloads all episodes inside.</li>
+                <li><span class="tag-new">New</span> <strong>Queue Management:</strong> Added expandable queue list with the ability to cancel individual pending items.</li>
+                <li><span class="tag-new">New</span> Added global Pause/Resume button.</li>
+                <li><span class="tag-new">New</span> Added customizable Auto-Sync schedule time (default 4:00 AM).</li>
+            </ul>
+        </div>
+
+        <div class="version-block">
+            <div class="ver-header"><span class="ver-tag">v1.0.0</span></div>
+            <ul>
+                <li>Initial Release.</li>
+                <li>Basic functionality: Remote browsing, manual downloads, auto-sync mapping.</li>
+                <li>Metadata deduplication via local Jellyfin API connection.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Apply saved theme
+        fetch('/api/config').then(r=>r.json()).then(c => {
+            if(c.theme) document.body.setAttribute('data-theme', c.theme);
+        });
+    </script>
+</body>
+</html>
