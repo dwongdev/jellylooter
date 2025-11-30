@@ -30,12 +30,11 @@ button.sec { background: #555; } button.dl { background: var(--success); } butto
 .tab { padding: 10px 20px; cursor: pointer; color: #888; font-weight: bold; }
 .tab.active { color: var(--accent); border-bottom: 2px solid var(--accent); margin-bottom: -2px; }
 .auth-method { display: none; } .auth-method.show { display: block; }
-
 /* Help Buttons */
 .help-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
 .btn-gh { background: #24292e; flex: 1; text-decoration: none; text-align: center; color: white; padding: 12px; border-radius: 4px; font-weight: bold; }
 .btn-bmc { background: #FFDD00; color: #000 !important; flex: 1; text-decoration: none; text-align: center; padding: 12px; border-radius: 4px; font-weight: bold; }
-
+.btn-log { background: #e74c3c; flex: 1; text-decoration: none; text-align: center; color: white; padding: 12px; border-radius: 4px; font-weight: bold; }
 @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } .poster-grid { grid-template-columns: repeat(3, 1fr); gap: 5px; } .poster-check { display: block; opacity: 0.5; } .poster-check.checked { opacity: 1; } .help-actions { flex-direction: column; } }
 </style>
 </head>
@@ -44,7 +43,7 @@ button.sec { background: #555; } button.dl { background: var(--success); } butto
     <div style="display:flex; align-items:center; gap:10px">
         <h1>JellyLooter</h1>
         <button onclick="toggleTheme()" class="sec" style="padding:5px 10px" title="Toggle Theme">🌗</button>
-        <button class="sec" style="padding:5px 10px" onclick="window.location.href='/changelog'" title="View Changelog">📜</button>
+        <button class="del" style="padding:5px 10px" onclick="window.location.href='/changelog'" title="Changelog">📜</button>
         <button class="sec" style="padding:5px 10px" onclick="document.getElementById('helpModal').style.display='block'" title="Help">?</button>
     </div>
     <div style="text-align:right">
@@ -85,13 +84,11 @@ button.sec { background: #555; } button.dl { background: var(--success); } butto
             </div>
             <div style="margin-top:10px; font-size:0.8rem; opacity:0.6">Cache: <span id="dbCount">0</span> items (<span id="dbTime">Never</span>)</div>
         </div>
-
         <div id="localServerForm">
             <label>My Local Jellyfin (For Dedupe)</label>
             <div class="row"><input id="localUrl" placeholder="http://192.168.x.x:8096"><input id="localKey" placeholder="API Key"></div>
             <div style="display:flex; gap:10px; margin-bottom:15px"><button class="sec" onclick="testLocal()">Test & Save</button><span id="localStatus" style="align-self:center"></span></div>
         </div>
-
         <hr style="border-color:var(--border); opacity:0.3; margin:20px 0">
         <h3>Remote Servers</h3>
         <div id="serverList" style="margin-bottom:15px"></div>
@@ -117,22 +114,19 @@ button.sec { background: #555; } button.dl { background: var(--success); } butto
 <div class="panel" style="background:transparent; border:none"><button class="sec" onclick="toggleLogs()">Show/Hide Logs</button><div id="logsContainer" style="display:none; margin-top:10px"><textarea id="logs" readonly style="width:100%; height:200px; background:#000; color:#0f0; border:1px solid var(--border); font-family:monospace; padding:10px; resize:none"></textarea></div></div>
 
 <div id="remoteModal" class="modal"><div class="modal-content"><div style="display:flex; justify-content:space-between; margin-bottom:10px"><div><button class="sec" onclick="remoteUp()">⬆️ Back</button> <span id="remotePathName" style="font-size:1.2rem; font-weight:bold; margin-left:10px">Root</span></div><div><button class="sm" onclick="selectAll()">All</button> <button class="sec" onclick="closeBrowser('remoteModal')">Close</button></div></div><div style="flex-grow:1; overflow-y:auto"><div id="remoteGrid" class="poster-grid"></div><div style="padding:20px;text-align:center"><button class="sec" onclick="prevPage()">Prev</button> <span id="pageInfo" style="margin:0 15px">Page 1</span> <button class="sec" onclick="nextPage()">Next</button></div></div><div id="batchBar"><span id="batchCount">0 Items</span><button class="dl" onclick="promptDownload()">Download</button><button class="sec" onclick="clearSelection()">X</button></div></div></div>
-
 <div id="downloadModal" class="modal" style="z-index:2000"><div class="modal-content" style="max-width:500px; height:auto"><h3>Download Location</h3><p>Choose where to save these items:</p><select id="dlPathSelect" onchange="checkCustomPath()"></select><div id="customPathDiv" style="display:none; margin-top:10px"><input id="customDlPath" placeholder="/storage/Downloads"><button class="sec" onclick="openBrowser('customDlPath')">Browse</button></div><div style="text-align:right; margin-top:20px"><button class="sec" onclick="closeBrowser('downloadModal')">Cancel</button> <button class="dl" onclick="confirmDownload()">Start Download</button></div></div></div>
-
 <div id="browserModal" class="modal" style="z-index:2100"><div class="modal-content" style="max-width:600px; height:80vh"><h3>Select Folder</h3><span id="currentPath" style="font-family:monospace; color:var(--accent)">/storage</span><div id="browserList" style="background:var(--input); margin:10px 0; border-radius:4px; flex-grow:1; overflow-y:auto"></div><div style="text-align:right"><button class="sec" onclick="closeBrowser('browserModal')">Cancel</button> <button onclick="selectCurrentFolder()">Select</button></div></div></div>
 
 <div id="helpModal" class="modal">
     <div class="modal-content" style="max-width:600px; height:auto">
         <h3>Help & Documentation</h3>
-        <div style="margin-bottom:15px"><b>1. Connections:</b> Add remote Jellyfin servers using API Keys or User/Pass.</div>
-        <div style="margin-bottom:15px"><b>2. Dedupe:</b> Connect your Local Jellyfin. Click "Refresh Library" to scan your files. This prevents duplicate downloads.</div>
-        <div style="margin-bottom:15px"><b>3. Manual Download:</b> Open the Remote Explorer. Click items/folders to select. Click "Download" to fetch.</div>
-        <div style="margin-bottom:15px"><b>4. Auto-Sync:</b> Map remote libraries to local folders. Sync runs daily at the specified time.</div>
-        <div style="margin-bottom:15px"><b>5. Queue:</b> Expand the QUEUE section on the dashboard to view and cancel pending items.</div>
-        
+        <div style="margin-bottom:15px"><b>1. Connections:</b> Add remote Jellyfin servers.</div>
+        <div style="margin-bottom:15px"><b>2. Dedupe:</b> Connect Local Jellyfin & "Refresh Library" to scan files.</div>
+        <div style="margin-bottom:15px"><b>3. Manual Download:</b> Browse remote. Select items. Download.</div>
+        <div style="margin-bottom:15px"><b>4. Auto-Sync:</b> Map remote libraries to local folders.</div>
         <div class="help-actions">
             <a href="https://github.com/jlightner86/jellylooter" target="_blank" class="btn-gh">★ Star on GitHub</a>
+            <a href="/changelog" class="btn-log">📜 Changelog</a>
             <a href="https://buymeacoffee.com/friendlymedia" target="_blank" class="btn-bmc">☕ Buy me a Coffee</a>
         </div>
         <div style="text-align:right; margin-top:20px"><button class="sec" onclick="closeBrowser('helpModal')">Close</button></div>
@@ -140,15 +134,12 @@ button.sec { background: #555; } button.dl { background: var(--success); } butto
 </div>
 
 <script>
-let config={}, authMode='creds', currentRemoteServer=null, currentRemoteParent='root', remoteHistory=[], isPaused=false, selectedItems=new Set(), remotePage=0, remoteLimit=25, remoteTotal=0, currentLocalPath='/storage', activeBrowserInput=null;
-let queueVisible = false;
-
+let config={}, authMode='creds', currentRemoteServer=null, currentRemoteParent='root', remoteHistory=[], isPaused=false, selectedItems=new Set(), remotePage=0, remoteLimit=25, remoteTotal=0, currentLocalPath='/storage', activeBrowserInput=null, queueVisible=false;
 function toggleTheme() { config.theme = document.body.getAttribute('data-theme')==='light'?'dark':'light'; document.body.setAttribute('data-theme', config.theme); saveConfig(); }
 function setAuth(mode) { authMode=mode; document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.getElementById('tab-'+mode).classList.add('active'); document.querySelectorAll('.auth-method').forEach(d=>d.classList.remove('show')); document.getElementById('auth-'+mode).classList.add('show'); }
 function closeBrowser(id) { document.getElementById(id).style.display='none'; }
 function toggleLogs() { const l=document.getElementById('logsContainer'); l.style.display=l.style.display==='none'?'block':'none'; }
 function toggleQueue() { queueVisible = !queueVisible; document.getElementById('queueList').style.display = queueVisible ? 'block' : 'none'; }
-
 async function refresh() {
     try {
         config = await (await fetch('/api/config')).json();
@@ -156,82 +147,32 @@ async function refresh() {
         document.getElementById('speedLimit').value = config.speed_limit_kbs;
         document.getElementById('autoSyncToggle').checked = config.auto_sync_enabled;
         document.getElementById('syncTime').value = config.sync_time || "04:00";
-        
-        if(config.local_server_url && config.local_server_key) {
-            document.getElementById('localServerForm').style.display='none';
-            document.getElementById('localServerSaved').style.display='block';
-            document.getElementById('savedLocalUrl').innerText = config.local_server_url;
-        } else {
-            document.getElementById('localServerForm').style.display='block';
-            document.getElementById('localServerSaved').style.display='none';
-        }
-
-        const sList=document.getElementById('serverList'), rSelect=document.getElementById('remoteServerSelect');
-        sList.innerHTML=''; rSelect.innerHTML='<option value="">Select Server...</option>';
+        if(config.local_server_url && config.local_server_key) { document.getElementById('localServerForm').style.display='none'; document.getElementById('localServerSaved').style.display='block'; document.getElementById('savedLocalUrl').innerText = config.local_server_url; } else { document.getElementById('localServerForm').style.display='block'; document.getElementById('localServerSaved').style.display='none'; }
+        const sList=document.getElementById('serverList'), rSelect=document.getElementById('remoteServerSelect'); sList.innerHTML=''; rSelect.innerHTML='<option value="">Select Server...</option>';
         config.servers.forEach(s => { sList.innerHTML += `<div class="list-item" style="padding:5px; margin-bottom:5px; background:rgba(0,0,0,0.1)"><b>${s.name}</b> <button class="del sm" onclick="delServer('${s.id}')" style="float:right">X</button></div>`; rSelect.innerHTML += `<option value="${s.id}">${s.name}</option>`; });
         document.getElementById('mappingList').innerHTML = config.mappings.map(m => { const s=config.servers.find(x=>x.id===m.server_id); return `<div class="list-item" style="padding:5px; margin-bottom:5px; background:rgba(0,0,0,0.1)"><span><b>${s?s.name:'?'}</b>: ${m.lib_name} -> ${m.local_path}</span> <button class="del sm" onclick="delMapping('${m.id}')" style="float:right">X</button></div>`; }).join('');
         scanLibraries();
     } catch(e) {}
 }
-
 async function testLocal() {
-    const url=document.getElementById('localUrl').value.replace(/\/$/,""), key=document.getElementById('localKey').value, lbl=document.getElementById('localStatus');
-    lbl.innerText="Testing..."; lbl.style.color="var(--text)";
+    const url=document.getElementById('localUrl').value.replace(/\/$/,""), key=document.getElementById('localKey').value, lbl=document.getElementById('localStatus'); lbl.innerText="Testing...";
     const res = await (await fetch('/api/test_connection', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url, key})})).json();
-    if(res.status==='ok') { 
-        config.local_server_url = url; config.local_server_key = key;
-        await saveConfig(); refresh();
-    } else { lbl.innerText="Error: "+res.error; lbl.style.color="#e74c3c"; }
+    if(res.status==='ok') { config.local_server_url = url; config.local_server_key = key; await saveConfig(); refresh(); } else { lbl.innerText="Error"; lbl.style.color="#e74c3c"; }
 }
-
-async function removeLocal() {
-    if(!confirm("Remove Local Server connection?")) return;
-    await fetch('/api/remove_local', {method:'POST'}); refresh();
-}
-
-async function rebuildCache() {
-    await fetch('/api/rebuild_cache', {method:'POST'});
-    document.getElementById('scanBox').style.display = 'block';
-}
-
+async function removeLocal() { if(!confirm("Remove Local Server connection?")) return; await fetch('/api/remove_local', {method:'POST'}); refresh(); }
+async function rebuildCache() { await fetch('/api/rebuild_cache', {method:'POST'}); document.getElementById('scanBox').style.display = 'block'; }
 setInterval(async () => {
     const data = await (await fetch('/api/status')).json();
     if(data.paused !== isPaused) { isPaused=data.paused; document.getElementById('pauseBtn').innerText=isPaused?"▶ RESUME":"II PAUSE"; }
-    document.getElementById('activeList').innerHTML = Object.values(data.active).map(d => 
-        `<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:0.9rem"><span>${d.filename}</span><div><span style="color:var(--accent);margin-right:10px">${d.status} (${d.speed})</span><button class="del sm" onclick="cancelTask('${d.id}')" style="padding:2px 6px">X</button></div></div><div class="progress-bar"><div class="fill" style="width:${d.percent}%"></div></div></div>`
-    ).join('');
+    document.getElementById('activeList').innerHTML = Object.values(data.active).map(d => `<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:0.9rem"><span>${d.filename}</span><div><span style="color:var(--accent);margin-right:10px">${d.status} (${d.speed})</span><button class="del sm" onclick="cancelTask('${d.id}')" style="padding:2px 6px">X</button></div></div><div class="progress-bar"><div class="fill" style="width:${d.percent}%"></div></div></div>`).join('');
     document.getElementById('queueCount').innerText = data.pending.length;
-    document.getElementById('dbCount').innerText = data.cache_count;
-    document.getElementById('dbTime').innerText = data.cache_time;
-    
-    if(data.scan_progress.running) {
-        document.getElementById('scanBox').style.display = 'block';
-        document.getElementById('scanFill').style.width = data.scan_progress.percent + "%";
-        document.getElementById('scanCurrent').innerText = data.scan_progress.current;
-        document.getElementById('scanTotal').innerText = data.scan_progress.total;
-        document.getElementById('scanStatusText').innerText = data.scan_progress.status;
-    } else if(data.scan_progress.percent === 100) {
-        setTimeout(() => document.getElementById('scanBox').style.display = 'none', 3000);
-    }
-
-    if(queueVisible) {
-        document.getElementById('queueList').innerHTML = data.pending.map(p => `<div style="padding:5px; border-bottom:1px solid var(--border); font-size:0.85rem; display:flex; justify-content:space-between; align-items:center"><span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:80%">${p.name}</span><button class="del sm" onclick="cancelTask('${p.id}')" style="padding:0 5px; font-size:0.7rem">x</button></div>`).join('') || '<div style="padding:5px; opacity:0.5; font-size:0.8rem">Empty</div>';
-    }
-    
-    if(document.getElementById('logsContainer').style.display !== 'none') {
-        const txt = await (await fetch('/api/logs')).text();
-        const area = document.getElementById('logs');
-        if(area.value !== txt) { area.value = txt; area.scrollTop = area.scrollHeight; }
-    }
+    document.getElementById('dbCount').innerText = data.cache_count; document.getElementById('dbTime').innerText = data.cache_time;
+    if(data.scan_progress.running) { document.getElementById('scanBox').style.display = 'block'; document.getElementById('scanFill').style.width = data.scan_progress.percent + "%"; document.getElementById('scanCurrent').innerText = data.scan_progress.current; document.getElementById('scanTotal').innerText = data.scan_progress.total; document.getElementById('scanStatusText').innerText = data.scan_progress.status; } else if(data.scan_progress.percent === 100) { setTimeout(() => document.getElementById('scanBox').style.display = 'none', 3000); }
+    if(queueVisible) { document.getElementById('queueList').innerHTML = data.pending.map(p => `<div style="padding:5px; border-bottom:1px solid var(--border); font-size:0.85rem; display:flex; justify-content:space-between; align-items:center"><span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:80%">${p.name}</span><button class="del sm" onclick="cancelTask('${p.id}')" style="padding:0 5px; font-size:0.7rem">x</button></div>`).join('') || '<div style="padding:5px; opacity:0.5; font-size:0.8rem">Empty</div>'; }
+    if(document.getElementById('logsContainer').style.display !== 'none') { const txt = await (await fetch('/api/logs')).text(); const area = document.getElementById('logs'); if(area.value !== txt) { area.value = txt; area.scrollTop = area.scrollHeight; } }
 }, 500);
-
 async function cancelTask(id) { await fetch('/api/cancel', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id})}); }
-async function openRemoteBrowser() { 
-    const sid=document.getElementById('remoteServerSelect').value; if(!sid) return alert("Select Server");
-    currentRemoteServer=sid; currentRemoteParent='root'; remoteHistory=[]; remotePage=0; clearSelection();
-    document.getElementById('remoteModal').style.display='block'; loadRemoteItems();
-}
-
+async function openRemoteBrowser() { const sid=document.getElementById('remoteServerSelect').value; if(!sid) return alert("Select Server"); currentRemoteServer=sid; currentRemoteParent='root'; remoteHistory=[]; remotePage=0; clearSelection(); document.getElementById('remoteModal').style.display='block'; loadRemoteItems(); }
 async function loadRemoteItems() {
     const grid=document.getElementById('remoteGrid'); grid.innerHTML='<div style="padding:20px;text-align:center">Loading...</div>';
     const data = await (await fetch('/api/browse_remote', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({server_id:currentRemoteServer, parent_id:currentRemoteParent, skip:remotePage*remoteLimit, limit:remoteLimit})})).json();
@@ -241,70 +182,36 @@ async function loadRemoteItems() {
         let img = i.HasImage ? `${data.base_url}/Items/${i.Id}/Images/Primary?fillWidth=200&quality=90` : '';
         let act = i.IsFolder ? `onclick="remoteEnter('${i.Id}', '${i.Name.replace(/'/g,"\\'")}')"` : `onclick="toggleSelection('${i.Id}')"`;
         let chk = selectedItems.has(i.Id) ? 'checked' : '';
-        if(i.IsFolder) act += ` oncontextmenu="toggleSelection('${i.Id}');return false;"`; 
         grid.innerHTML += `<div class="poster-card" id="card-${i.Id}"><img class="poster-img" src="${img}" ${act}>${i.ExistsLocally?`<div class="owned-badge">OWNED</div>`:''}<div class="poster-check ${chk}" onclick="event.stopPropagation(); toggleSelection('${i.Id}')"></div><div class="poster-overlay" ${act}>${i.Name}</div></div>`;
     });
 }
-
 function updatePagination() { document.getElementById('pageInfo').innerText = `Page ${remotePage+1} of ${Math.ceil(remoteTotal/remoteLimit)||1}`; }
 function nextPage() { if((remotePage+1)*remoteLimit < remoteTotal) { remotePage++; loadRemoteItems(); } }
 function prevPage() { if(remotePage>0) { remotePage--; loadRemoteItems(); } }
 function toggleSelection(id) {
     if(selectedItems.has(id)) { selectedItems.delete(id); document.querySelector(`#card-${id} .poster-check`).classList.remove('checked'); }
     else { selectedItems.add(id); document.querySelector(`#card-${id} .poster-check`).classList.add('checked'); }
-    document.getElementById('batchBar').style.display = selectedItems.size>0 ? 'flex' : 'none';
-    document.getElementById('batchCount').innerText = `${selectedItems.size} Items`;
+    document.getElementById('batchBar').style.display = selectedItems.size>0 ? 'flex' : 'none'; document.getElementById('batchCount').innerText = `${selectedItems.size} Items`;
 }
 function clearSelection() { selectedItems.clear(); document.querySelectorAll('.poster-check').forEach(el=>el.classList.remove('checked')); document.getElementById('batchBar').style.display='none'; }
 function selectAll() { document.querySelectorAll('.poster-check').forEach(el => { el.classList.add('checked'); selectedItems.add(el.parentElement.id.replace('card-','')); }); document.getElementById('batchBar').style.display='flex'; document.getElementById('batchCount').innerText=`${selectedItems.size} Items`; }
-function promptDownload() {
-    const sel = document.getElementById('dlPathSelect');
-    sel.innerHTML = '<option value="">-- Choose Mapped Path --</option>';
-    config.mappings.forEach(m => { sel.innerHTML += `<option value="${m.local_path}">${m.local_path} (${m.lib_name})</option>`; });
-    sel.innerHTML += '<option value="custom">Other / Browse...</option>';
-    document.getElementById('downloadModal').style.display = 'block';
-    checkCustomPath();
-}
+function promptDownload() { const sel = document.getElementById('dlPathSelect'); sel.innerHTML = '<option value="">-- Choose Mapped Path --</option>'; config.mappings.forEach(m => { sel.innerHTML += `<option value="${m.local_path}">${m.local_path} (${m.lib_name})</option>`; }); sel.innerHTML += '<option value="custom">Other / Browse...</option>'; document.getElementById('downloadModal').style.display = 'block'; checkCustomPath(); }
 function checkCustomPath() { document.getElementById('customPathDiv').style.display = document.getElementById('dlPathSelect').value === 'custom' ? 'block' : 'none'; }
-async function confirmDownload() {
-    let path = document.getElementById('dlPathSelect').value;
-    if(path === 'custom' || !path) path = document.getElementById('customDlPath').value;
-    if(!path) return alert("Select a path!");
-    await fetch('/api/batch_download', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({server_id:currentRemoteServer, item_ids:Array.from(selectedItems), path})});
-    alert("Queued!"); clearSelection(); closeBrowser('downloadModal');
-}
+async function confirmDownload() { let path = document.getElementById('dlPathSelect').value; if(path === 'custom' || !path) path = document.getElementById('customDlPath').value; if(!path) return alert("Select a path!"); await fetch('/api/batch_download', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({server_id:currentRemoteServer, item_ids:Array.from(selectedItems), path})}); alert("Queued!"); clearSelection(); closeBrowser('downloadModal'); }
 function remoteEnter(id, name) { remoteHistory.push({id:currentRemoteParent, name:document.getElementById('remotePathName').innerText}); currentRemoteParent=id; remotePage=0; document.getElementById('remotePathName').innerText=name; loadRemoteItems(); }
 function remoteUp() { if(remoteHistory.length===0) return; const prev=remoteHistory.pop(); currentRemoteParent=prev.id; remotePage=0; document.getElementById('remotePathName').innerText=prev.name; loadRemoteItems(); }
 async function scanLibraries() { const d = await (await fetch('/api/scan_libs')).json(); const sel=document.getElementById('libSelect'); sel.innerHTML=''; d.forEach(g => { const grp=document.createElement('optgroup'); grp.label=g.server_name; g.libs.forEach(l=>{ const o=document.createElement('option'); o.value=JSON.stringify({sid:g.server_id, lid:l.Id, lname:l.Name}); o.text=l.Name; grp.appendChild(o); }); sel.appendChild(grp); }); }
-async function addServer() {
-    const name=document.getElementById('newSrvName').value, url=document.getElementById('newSrvUrl').value.replace(/\/$/,"");
-    let payload={url, name};
-    if(authMode==='creds') { payload.username=document.getElementById('newSrvUser').value; payload.password=document.getElementById('newSrvPass').value; }
-    else { payload.key=document.getElementById('newSrvKey').value; }
-    const res = await (await fetch('/api/test_connection', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})).json();
-    if(res.status==='ok') { config.servers.push({id:Date.now().toString(), name, url, key:res.key}); await saveConfig(); refresh(); } else alert(res.error);
-}
+async function addServer() { const name=document.getElementById('newSrvName').value, url=document.getElementById('newSrvUrl').value.replace(/\/$/,""); let payload={url, name}; if(authMode==='creds') { payload.username=document.getElementById('newSrvUser').value; payload.password=document.getElementById('newSrvPass').value; } else { payload.key=document.getElementById('newSrvKey').value; } const res = await (await fetch('/api/test_connection', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})).json(); if(res.status==='ok') { config.servers.push({id:Date.now().toString(), name, url, key:res.key}); await saveConfig(); refresh(); } else alert(res.error); }
 async function addMapping() { const sel=document.getElementById('libSelect'), path=document.getElementById('localPath').value; if(!path||!sel.value) return alert("Inputs?"); const d=JSON.parse(sel.value); config.mappings.push({id:Date.now().toString(), server_id:d.sid, lib_id:d.lid, lib_name:d.lname, local_path:path}); await saveConfig(); refresh(); }
 async function delServer(id) { if(confirm("Del?")) { config.servers=config.servers.filter(s=>s.id!==id); config.mappings=config.mappings.filter(m=>m.server_id!==id); await saveConfig(); refresh(); } }
 async function delMapping(id) { config.mappings=config.mappings.filter(m=>m.id!==id); await saveConfig(); refresh(); }
-async function togglePause() { const data = await (await fetch('/api/'+(isPaused?'resume':'pause'))).json(); isPaused=data.paused; document.getElementById('pauseBtn').innerText=isPaused?"▶ RESUME":"II PAUSE"; }
 async function saveGlobal() { config.speed_limit_kbs=parseInt(document.getElementById('speedLimit').value)||0; config.local_server_url=document.getElementById('localUrl').value.replace(/\/$/,""); config.local_server_key=document.getElementById('localKey').value; config.auto_sync_enabled=document.getElementById('autoSyncToggle').checked; config.sync_time=document.getElementById('syncTime').value; await saveConfig(); alert("Saved"); }
 async function saveConfig() { await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(config)}); }
 async function triggerSync() { fetch('/api/sync'); }
-async function openBrowser(targetId=null) { 
-    if(targetId) activeBrowserInput = targetId; 
-    else activeBrowserInput = 'localPath';
-    document.getElementById('browserModal').style.display='block'; currentLocalPath='/storage'; loadLocalItems(); 
-}
-async function loadLocalItems() { 
-    const list=document.getElementById('browserList'); document.getElementById('currentPath').innerText=currentLocalPath; list.innerHTML='Loading...';
-    const data = await (await fetch('/api/browse_local', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path:currentLocalPath})})).json();
-    list.innerHTML=''; if(data.parent) list.innerHTML+=`<div class="list-item" style="cursor:pointer" onclick="navigateLocal('${data.parent}')">⬆️ ..</div>`;
-    data.folders.forEach(f => { const p=currentLocalPath==='/'?('/'+f):(currentLocalPath+'/'+f); list.innerHTML+=`<div class="list-item" style="cursor:pointer" onclick="navigateLocal('${p}')">📁 ${f}</div>`; });
-}
+async function openBrowser(targetId=null) { if(targetId) activeBrowserInput = targetId; else activeBrowserInput = 'localPath'; document.getElementById('browserModal').style.display='block'; currentLocalPath='/storage'; loadLocalItems(); }
+async function loadLocalItems() { const list=document.getElementById('browserList'); document.getElementById('currentPath').innerText=currentLocalPath; list.innerHTML='Loading...'; const data = await (await fetch('/api/browse_local', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path:currentLocalPath})})).json(); list.innerHTML=''; if(data.parent) list.innerHTML+=`<div class="list-item" style="cursor:pointer" onclick="navigateLocal('${data.parent}')">⬆️ ..</div>`; data.folders.forEach(f => { const p=currentLocalPath==='/'?('/'+f):(currentLocalPath+'/'+f); list.innerHTML+=`<div class="list-item" style="cursor:pointer" onclick="navigateLocal('${p}')">📁 ${f}</div>`; }); }
 function navigateLocal(p) { currentLocalPath=p; loadLocalItems(); }
 function selectCurrentFolder() { document.getElementById(activeBrowserInput).value=currentLocalPath; closeBrowser('browserModal'); }
-
 refresh();
 </script>
 </body>
