@@ -31,13 +31,11 @@ button.sec { background: #555; } button.dl { background: var(--success); } butto
 .tab.active { color: var(--accent); border-bottom: 2px solid var(--accent); margin-bottom: -2px; }
 .auth-method { display: none; } .auth-method.show { display: block; }
 
-/* Help Modal Specifics */
-.help-row { padding: 15px 0; border-bottom: 1px solid var(--border); }
-.help-row:last-child { border-bottom: none; }
-.help-num { display: inline-block; width: 24px; height: 24px; background: var(--accent); color: white; border-radius: 50%; text-align: center; line-height: 24px; margin-right: 10px; font-weight: bold; font-size: 0.9rem; }
+/* Help Buttons */
 .help-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
 .btn-gh { background: #24292e; flex: 1; text-decoration: none; text-align: center; color: white; padding: 12px; border-radius: 4px; font-weight: bold; }
 .btn-bmc { background: #FFDD00; color: #000 !important; flex: 1; text-decoration: none; text-align: center; padding: 12px; border-radius: 4px; font-weight: bold; }
+.btn-log { background: #555; flex: 1; text-decoration: none; text-align: center; color: white; padding: 12px; border-radius: 4px; font-weight: bold; }
 
 @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } .poster-grid { grid-template-columns: repeat(3, 1fr); gap: 5px; } .poster-check { display: block; opacity: 0.5; } .poster-check.checked { opacity: 1; } .help-actions { flex-direction: column; } }
 </style>
@@ -128,12 +126,14 @@ button.sec { background: #555; } button.dl { background: var(--success); } butto
         </div>
         
         <div class="help-row"><div style="display:flex; align-items:center; margin-bottom:5px"><span class="help-num">1</span> <b>Connect Remote</b></div><p style="margin:0; font-size:0.9rem">Add your friend's server details (User/Pass or API Key).</p></div>
-        <div class="help-row"><div style="display:flex; align-items:center; margin-bottom:5px"><span class="help-num">2</span> <b>Dedupe</b></div><p style="margin:0; font-size:0.9rem">Connect Local Jellyfin & click "Refresh Library" to enable duplicate checking.</p></div>
+        <div class="help-row"><div style="display:flex; align-items:center; margin-bottom:5px"><span class="help-num">2</span> <b>Dedupe</b></div><p style="margin:0; font-size:0.9rem">Connect Local Jellyfin & click "Refresh Library" to scan your files. This prevents duplicate downloads.</p></div>
         <div class="help-row"><div style="display:flex; align-items:center; margin-bottom:5px"><span class="help-num">3</span> <b>Manual Download</b></div><p style="margin:0; font-size:0.9rem">Browse remotely. Select items/folders. Click Download.</p></div>
-        <div class="help-row"><div style="display:flex; align-items:center; margin-bottom:5px"><span class="help-num">4</span> <b>Auto-Sync</b></div><p style="margin:0; font-size:0.9rem">Map remote libraries to local folders. Runs daily at configured time.</p></div>
+        <div class="help-row"><div style="display:flex; align-items:center; margin-bottom:5px"><span class="help-num">4</span> <b>Auto-Sync</b></div><p style="margin:0; font-size:0.9rem">Map remote libraries to local folders. Sync runs daily at the specified time.</p></div>
+        <div class="help-row"><div style="display:flex; align-items:center; margin-bottom:5px"><span class="help-num">5</span> <b>Queue & Recursive</b></div><p style="margin:0; font-size:0.9rem">Downloading a Season/Series automatically finds all episodes inside. Expand the <b>QUEUE</b> section on the dashboard to view or cancel pending tasks.</p></div>
         
         <div class="help-actions">
             <a href="https://github.com/jlightner86/jellylooter" target="_blank" class="btn-gh">★ Star on GitHub</a>
+            <a href="/changelog" class="btn-log">📜 Changelog</a>
             <a href="https://buymeacoffee.com/friendlymedia" target="_blank" class="btn-bmc">☕ Buy me a Coffee</a>
         </div>
     </div>
