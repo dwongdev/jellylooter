@@ -1,86 +1,248 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Changelog - JellyLooter</title>
+    <title>JellyLooter - Changelog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #121212; --card: #1f1f1f; --accent: #7289da; --text: #f0f0f0; --border: #333; }
-        [data-theme="light"] { --bg: #f5f6fa; --card: #ffffff; --accent: #007bff; --text: #212529; --border: #dee2e6; }
-        
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; transition: 0.3s; }
-        .panel { background: var(--card); padding: 30px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        
-        h1 { color: var(--accent); border-bottom: 2px solid var(--border); padding-bottom: 15px; margin-top: 0; }
-        button { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        button:hover { opacity: 0.9; }
+        :root {
+            --jf-primary: #00a4dc;
+            --jf-gradient: linear-gradient(135deg, #00a4dc 0%, #aa5cc3 100%);
+        }
 
-        .version-block { margin-bottom: 30px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
-        .version-block:last-child { border-bottom: none; }
-        .ver-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
-        .ver-tag { font-size: 1.4rem; font-weight: bold; color: var(--accent); }
-        .ver-date { opacity: 0.6; font-size: 0.9rem; }
-        
-        ul { padding-left: 20px; line-height: 1.6; }
-        li { margin-bottom: 5px; }
-        .tag-new { background: #2ecc71; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; margin-right: 5px; vertical-align: middle; }
-        .tag-fix { background: #e74c3c; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; margin-right: 5px; vertical-align: middle; }
+        [data-theme="dark"] {
+            --jf-bg-dark: #101010;
+            --jf-bg-card: #1a1a1a;
+            --jf-text: #ffffff;
+            --jf-text-muted: #888888;
+            --jf-border: #333333;
+        }
+
+        [data-theme="light"] {
+            --jf-bg-dark: #f5f5f5;
+            --jf-bg-card: #ffffff;
+            --jf-text: #1a1a1a;
+            --jf-text-muted: #666666;
+            --jf-border: #dddddd;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background: var(--jf-bg-dark);
+            color: var(--jf-text);
+            min-height: 100vh;
+            line-height: 1.6;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--jf-border);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--jf-gradient);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: var(--jf-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .back-btn {
+            padding: 0.5rem 1rem;
+            background: var(--jf-bg-card);
+            border: 1px solid var(--jf-border);
+            border-radius: 8px;
+            color: var(--jf-text);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            background: var(--jf-primary);
+            border-color: var(--jf-primary);
+            color: white;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .version {
+            background: var(--jf-bg-card);
+            border: 1px solid var(--jf-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .version-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .version-number {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--jf-primary);
+        }
+
+        .version-date {
+            font-size: 0.875rem;
+            color: var(--jf-text-muted);
+        }
+
+        .version-tag {
+            padding: 0.25rem 0.75rem;
+            background: var(--jf-primary);
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: white;
+        }
+
+        .changes {
+            list-style: none;
+        }
+
+        .changes li {
+            padding: 0.5rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+            color: var(--jf-text-muted);
+        }
+
+        .changes li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: var(--jf-primary);
+        }
+
+        .change-type {
+            display: inline-block;
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+
+        .change-type.new { background: rgba(76, 175, 80, 0.2); color: #4caf50; }
+        .change-type.fix { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+        .change-type.improve { background: rgba(0, 164, 220, 0.2); color: #00a4dc; }
+        .change-type.security { background: rgba(156, 39, 176, 0.2); color: #9c27b0; }
     </style>
 </head>
 <body>
-    <div style="margin-bottom: 20px;">
-        <button onclick="window.location.href='/'">← Back to Dashboard</button>
-    </div>
-
-    <div class="panel">
-        <h1>Version History</h1>
-
-        <div class="version-block">
-            <div class="ver-header">
-                <span class="ver-tag">v1.12.0</span>
-                <span class="ver-date">Current Release</span>
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <img src="https://raw.githubusercontent.com/jlightner86/jellylooter/main/icon.png" alt="JellyLooter" class="logo-icon" style="background: none;">
+                <span class="logo-text">JellyLooter</span>
             </div>
-            <ul>
-                <li><span class="tag-new">New</span> Added dedicated Changelog page.</li>
-                <li><span class="tag-fix">Fix</span> Reduced library scan chunk size to 50 items to prevent timeouts on large libraries.</li>
-                <li><span class="tag-fix">Fix</span> Resolved issue where Local Server details would disappear on refresh.</li>
-                <li><span class="tag-new">New</span> Added visual progress bar for library scans.</li>
+            <a href="/" class="back-btn">← Back to App</a>
+        </div>
+
+        <h1>Changelog</h1>
+
+        <div class="version">
+            <div class="version-header">
+                <span class="version-number">v2.1.0</span>
+                <span class="version-date">December 2024</span>
+                <span class="version-tag">Latest</span>
+            </div>
+            <ul class="changes">
+                <li><span class="change-type security">Security</span> Added user authentication with secure login system</li>
+                <li><span class="change-type new">New</span> First-time setup wizard for creating admin account</li>
+                <li><span class="change-type new">New</span> Light and dark theme support with toggle</li>
+                <li><span class="change-type new">New</span> User session management with "remember me" option</li>
+                <li><span class="change-type new">New</span> Password change functionality</li>
+                <li><span class="change-type new">New</span> Toast notifications for user feedback</li>
+                <li><span class="change-type new">New</span> User dropdown menu in header</li>
+                <li><span class="change-type improve">Improve</span> Enhanced settings panel with more options</li>
+                <li><span class="change-type improve">Improve</span> Connection timeout and chunk size settings</li>
+                <li><span class="change-type improve">Improve</span> Download confirmation option</li>
+                <li><span class="change-type improve">Improve</span> Notification preferences</li>
+                <li><span class="change-type improve">Improve</span> Better organized settings sections</li>
+                <li><span class="change-type fix">Fix</span> Theme persists across sessions</li>
             </ul>
         </div>
 
-        <div class="version-block">
-            <div class="ver-header"><span class="ver-tag">v1.11.0</span></div>
-            <ul>
-                <li><span class="tag-new">New</span> Added "Refresh My Library" button to manually trigger local caching.</li>
-                <li><span class="tag-new">New</span> Added "Saved Server" card state for better visibility of connections.</li>
+        <div class="version">
+            <div class="version-header">
+                <span class="version-number">v2.0.0</span>
+                <span class="version-date">December 2024</span>
+            </div>
+            <ul class="changes">
+                <li><span class="change-type new">New</span> Complete UI redesign with Jellyfin-inspired theme</li>
+                <li><span class="change-type fix">Fix</span> Speed limiter now works correctly</li>
+                <li><span class="change-type new">New</span> Working stop/cancel button for downloads</li>
+                <li><span class="change-type new">New</span> Multi-select with Ctrl/Cmd+click or right-click</li>
+                <li><span class="change-type improve">Improve</span> Better download progress tracking with rolling speed average</li>
+                <li><span class="change-type improve">Improve</span> Thread-safe state management</li>
+                <li><span class="change-type new">New</span> Advanced settings panel (hidden by default)</li>
+                <li><span class="change-type fix">Fix</span> Changelog link now visible in header</li>
+                <li><span class="change-type improve">Improve</span> Cleaner, more readable codebase</li>
             </ul>
         </div>
 
-        <div class="version-block">
-            <div class="ver-header"><span class="ver-tag">v1.10.0</span></div>
-            <ul>
-                <li><span class="tag-new">New</span> <strong>Recursive Downloads:</strong> Selecting a Series or Season folder now automatically finds and downloads all episodes inside.</li>
-                <li><span class="tag-new">New</span> <strong>Queue Management:</strong> Added expandable queue list with the ability to cancel individual pending items.</li>
-                <li><span class="tag-new">New</span> Added global Pause/Resume button.</li>
-                <li><span class="tag-new">New</span> Added customizable Auto-Sync schedule time (default 4:00 AM).</li>
-            </ul>
-        </div>
-
-        <div class="version-block">
-            <div class="ver-header"><span class="ver-tag">v1.0.0</span></div>
-            <ul>
-                <li>Initial Release.</li>
-                <li>Basic functionality: Remote browsing, manual downloads, auto-sync mapping.</li>
-                <li>Metadata deduplication via local Jellyfin API connection.</li>
+        <div class="version">
+            <div class="version-header">
+                <span class="version-number">v1.0.0</span>
+                <span class="version-date">Initial Release</span>
+            </div>
+            <ul class="changes">
+                <li><span class="change-type new">New</span> Initial release</li>
+                <li><span class="change-type new">New</span> Remote server browsing</li>
+                <li><span class="change-type new">New</span> Local library cache for duplicate detection</li>
+                <li><span class="change-type new">New</span> Scheduled sync support</li>
+                <li><span class="change-type new">New</span> Library mapping configuration</li>
             </ul>
         </div>
     </div>
 
     <script>
-        // Apply saved theme
-        fetch('/api/config').then(r=>r.json()).then(c => {
-            if(c.theme) document.body.setAttribute('data-theme', c.theme);
-        });
+        // Match theme with main app
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
 </body>
 </html>
