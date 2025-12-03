@@ -11,6 +11,7 @@ import queue
 import datetime
 import hashlib
 import secrets
+import shutil
 from functools import wraps
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session, make_response
 
@@ -27,6 +28,7 @@ active_downloads = {}
 pending_display = []
 cancelled_tasks = set()
 download_lock = threading.Lock()
+worker_lock = threading.Lock()
 is_paused = False
 log_buffer = []
 local_id_cache = set()
@@ -38,6 +40,11 @@ scan_progress = {
     "total": 0,
     "status": "Idle"
 }
+
+# Worker management
+active_workers = 0
+target_workers = 2
+worker_shutdown = threading.Event()
 
 # --- Authentication Helpers ---
 
@@ -86,9 +93,7 @@ def login_required(f):
     """Decorator to require authentication"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Check for session token
         if 'user' not in session:
-            # Check for remember token in cookie
             remember_token = request.cookies.get('remember_token')
             if remember_token:
                 auth = load_auth()
@@ -139,8 +144,25 @@ def format_bytes(size):
 def get_auth_header(token=None):
     """Generate Jellyfin/Emby auth header"""
     return {
-        'X-Emby-Authorization': f'MediaBrowser Client="JellyLooter", Device="Unraid", DeviceId="JellyLooterId", Version="2.1.0", Token="{token or ""}"'
+        'X-Emby-Authorization': f'MediaBrowser Client="JellyLooter", Device="Unraid", DeviceId="JellyLooterId", Version="2.2.0", Token="{token or ""}"'
     }
+
+
+def check_disk_space(path, required_bytes=0):
+    """Check if there's enough disk space at the given path"""
+    try:
+        stat = shutil.disk_usage(path)
+        free_bytes = stat.free
+        
+        if required_bytes > 0 and free_bytes < required_bytes:
+            return False, f"Not enough space. Free: {format_bytes(free_bytes)}, Need: {format_bytes(required_bytes)}"
+        
+        if free_bytes < 1024 * 1024 * 1024:
+            log(f"⚠️ Warning: Low disk space on {path} - {format_bytes(free_bytes)} free")
+        
+        return True, f"Free: {format_bytes(free_bytes)}"
+    except Exception as e:
+        return False, f"Cannot check disk space: {e}"
 
 
 # --- Config Management ---
@@ -186,6 +208,7 @@ def save_config(data):
     with open(CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=4)
     setup_schedule()
+    adjust_workers(data.get('max_concurrent_downloads', 2))
 
 
 # --- Cache Management ---
@@ -232,13 +255,11 @@ def cache_worker():
         headers = get_auth_header(key)
         timeout = cfg.get('connection_timeout', 30)
         
-        # Get user ID
         u_res = requests.get(f"{url}/Users", headers=headers, timeout=timeout)
         if not u_res.ok:
             raise Exception("Authentication Failed")
         uid = u_res.json()[0]['Id']
 
-        # Get total count
         params = {
             'Recursive': 'true',
             'IncludeItemTypes': 'Movie,Series',
@@ -257,7 +278,6 @@ def cache_worker():
             'status': f"Found {total_count} items. Fetching..."
         })
 
-        # Fetch in batches
         new_cache = set()
         limit = 100
         offset = 0
@@ -283,7 +303,6 @@ def cache_worker():
                 'percent': int((offset / total_count) * 100) if total_count > 0 else 0
             })
 
-        # Save cache
         local_id_cache = new_cache
         cache_timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         
@@ -328,12 +347,10 @@ def setup_schedule():
     schedule.clear()
     cfg = load_config()
     
-    # Daily cache rebuild at 3 AM
     schedule.every().day.at("03:00").do(
         lambda: threading.Thread(target=cache_worker, daemon=True).start()
     )
     
-    # Sync at configured time
     if cfg.get('auto_sync_enabled', True):
         sync_time = cfg.get('sync_time', "04:00")
         try:
@@ -351,23 +368,47 @@ def schedule_runner():
         time.sleep(60)
 
 
-# --- Download Management ---
+# --- Worker Management ---
+
+def adjust_workers(new_count):
+    """Dynamically adjust the number of worker threads"""
+    global active_workers, target_workers
+    
+    with worker_lock:
+        target_workers = max(1, min(new_count, 10))
+        
+        while active_workers < target_workers:
+            threading.Thread(target=worker, daemon=True).start()
+            active_workers += 1
+            log(f"Started worker (total: {active_workers})")
+
 
 def worker():
     """Download worker thread"""
+    global active_workers
+    
     while True:
-        task = task_queue.get()
+        with worker_lock:
+            if active_workers > target_workers:
+                active_workers -= 1
+                log(f"Stopped worker (total: {active_workers})")
+                return
+        
+        try:
+            task = task_queue.get(timeout=5)
+        except queue.Empty:
+            continue
+        
         if task is None:
+            task_queue.task_done()
             break
         
         tid = task['task_id']
         
-        # Remove from pending
         with download_lock:
             global pending_display
             pending_display = [x for x in pending_display if x['id'] != tid]
         
-        # Check if cancelled before starting
         if tid in cancelled_tasks:
             cancelled_tasks.discard(tid)
             task_queue.task_done()
@@ -388,11 +429,34 @@ def download_file(task):
     tid = task['task_id']
     filepath = task['filepath']
     filename = os.path.basename(filepath)
-    speed_limit = task.get('limit', 0)
+    
     cfg = load_config()
+    speed_limit = cfg.get('speed_limit_kbs', 0)
     chunk_size = cfg.get('chunk_size_kb', 64) * 1024
+    timeout = cfg.get('connection_timeout', 30)
     
     try:
+        dir_path = os.path.dirname(filepath)
+        
+        if not os.path.exists(dir_path):
+            try:
+                os.makedirs(dir_path, exist_ok=True)
+                log(f"Created directory: {dir_path}")
+            except OSError as e:
+                raise Exception(f"Cannot create directory {dir_path}: {e}")
+        
+        test_file = os.path.join(dir_path, '.write_test')
+        try:
+            with open(test_file, 'w') as f:
+                f.write('test')
+            os.remove(test_file)
+        except OSError as e:
+            raise Exception(f"Cannot write to {dir_path}: {e}")
+        
+        space_ok, space_msg = check_disk_space(dir_path)
+        if not space_ok:
+            raise Exception(space_msg)
+        
         with download_lock:
             active_downloads[tid] = {
                 'id': tid,
@@ -404,17 +468,23 @@ def download_file(task):
                 'status': 'Starting'
             }
         
-        timeout = cfg.get('connection_timeout', 30)
         with requests.get(task['url'], stream=True, timeout=timeout) as response:
             response.raise_for_status()
             
             total_size = int(response.headers.get('content-length', 0))
+            
+            if total_size > 0:
+                space_ok, space_msg = check_disk_space(dir_path, total_size)
+                if not space_ok:
+                    raise Exception(space_msg)
+            
             with download_lock:
                 active_downloads[tid]['total'] = total_size
             
             downloaded = 0
             speed_window = []
             last_speed_update = time.time()
+            last_config_check = time.time()
             
             with open(filepath, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=chunk_size):
@@ -437,15 +507,29 @@ def download_file(task):
                         continue
                     
                     chunk_start = time.time()
-                    f.write(chunk)
+                    
+                    try:
+                        f.write(chunk)
+                    except OSError as e:
+                        if e.errno == 28:
+                            raise Exception(f"Disk full while writing to {dir_path}")
+                        raise
+                    
                     chunk_len = len(chunk)
                     downloaded += chunk_len
+                    
+                    now = time.time()
+                    if now - last_config_check > 10:
+                        cfg = load_config()
+                        speed_limit = cfg.get('speed_limit_kbs', 0)
+                        last_config_check = now
                     
                     if speed_limit > 0:
                         target_time = chunk_len / (speed_limit * 1024)
                         elapsed = time.time() - chunk_start
-                        if elapsed < target_time:
-                            time.sleep(target_time - elapsed)
+                        sleep_time = target_time - elapsed
+                        if sleep_time > 0:
+                            time.sleep(sleep_time)
                     
                     now = time.time()
                     speed_window.append((now, chunk_len))
@@ -554,28 +638,21 @@ def api_setup():
     username = data.get('username', '').strip()
     password = data.get('password', '')
     
-    # Validation
-    if len(username) < 3:
-        return jsonify({"status": "error", "message": "Username too short"})
-    if len(password) < 8:
-        return jsonify({"status": "error", "message": "Password too short"})
+    if not username or not password:
+        return jsonify({"status": "error", "message": "Username and password required"})
     
-    # Create auth data
+    if len(password) < 4:
+        return jsonify({"status": "error", "message": "Password must be at least 4 characters"})
+    
     auth_data = {
-        "users": {
-            username: {
-                "password_hash": hash_password(password),
-                "created": datetime.datetime.now().isoformat(),
-                "role": "admin"
-            }
+        'users': {
+            username: hash_password(password)
         },
-        "tokens": {}
+        'tokens': {}
     }
-    
     save_auth(auth_data)
-    log(f"Setup complete. Admin user '{username}' created.")
     
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "message": "Setup complete"})
 
 
 @app.route('/api/login', methods=['POST'])
@@ -590,14 +667,15 @@ def api_login():
     if not auth or 'users' not in auth:
         return jsonify({"status": "error", "message": "No users configured"})
     
-    user = auth['users'].get(username)
-    if not user or not verify_password(password, user['password_hash']):
+    if username not in auth['users']:
+        return jsonify({"status": "error", "message": "Invalid credentials"})
+    
+    if not verify_password(password, auth['users'][username]):
         return jsonify({"status": "error", "message": "Invalid credentials"})
     
     session['user'] = username
     
     response_data = {"status": "ok"}
-    response = make_response(jsonify(response_data))
     
     if remember:
         token = secrets.token_hex(32)
@@ -605,38 +683,12 @@ def api_login():
             auth['tokens'] = {}
         auth['tokens'][username] = token
         save_auth(auth)
-        response.set_cookie('remember_token', token, max_age=30*24*60*60, httponly=True)
+        response_data['remember_token'] = token
     
-    log(f"User '{username}' logged in")
-    return response
+    return jsonify(response_data)
 
 
-@app.route('/api/change_password', methods=['POST'])
-@login_required
-def api_change_password():
-    """Change user password"""
-    data = request.json
-    current_password = data.get('current_password', '')
-    new_password = data.get('new_password', '')
-    
-    if len(new_password) < 8:
-        return jsonify({"status": "error", "message": "New password too short"})
-    
-    auth = load_auth()
-    username = session.get('user')
-    user = auth['users'].get(username)
-    
-    if not verify_password(current_password, user['password_hash']):
-        return jsonify({"status": "error", "message": "Current password incorrect"})
-    
-    auth['users'][username]['password_hash'] = hash_password(new_password)
-    save_auth(auth)
-    
-    log(f"User '{username}' changed password")
-    return jsonify({"status": "ok"})
-
-
-# --- Flask Routes: Main Application ---
+# --- Flask Routes: Main ---
 
 @app.route('/')
 @login_required
@@ -645,23 +697,15 @@ def index():
 
 
 @app.route('/changelog')
+@login_required
 def changelog():
     return render_template('changelog.html')
 
 
 @app.route('/help')
+@login_required
 def help_page():
     return render_template('help.html')
-
-
-@app.route('/api/user')
-@login_required
-def api_user():
-    """Get current user info"""
-    return jsonify({
-        "username": session.get('user'),
-        "logged_in": True
-    })
 
 
 @app.route('/api/config', methods=['GET', 'POST'])
@@ -684,7 +728,8 @@ def status():
             "cache_time": cache_timestamp,
             "cache_count": len(local_id_cache),
             "scan_progress": dict(scan_progress),
-            "queue_size": task_queue.qsize()
+            "queue_size": task_queue.qsize(),
+            "worker_count": active_workers
         })
 
 
@@ -713,12 +758,9 @@ def resume_dl():
     return jsonify({"paused": False})
 
 
-
 @app.route('/api/cancel', methods=['POST'])
 @login_required
 def cancel_dl():
-    global pending_display  # <--- FIXED: Moved to the top so it works everywhere
-    """Cancel a specific download or all downloads"""
     data = request.json or {}
     task_id = data.get('task_id')
     cancel_all = data.get('all', False)
@@ -744,19 +786,18 @@ def cancel_dl():
     elif task_id:
         cancelled_tasks.add(task_id)
         with download_lock:
-            # global pending_display <--- REMOVED from here (it's at the top now)
+            global pending_display
             pending_display = [x for x in pending_display if x['id'] != task_id]
         log(f"Cancelled task: {task_id}")
         return jsonify({"status": "cancelled", "task_id": task_id})
     
     return jsonify({"status": "error", "message": "No task_id provided"})
+
+
 @app.route('/api/test_connection', methods=['POST'])
 @login_required
 def test_connection():
     data = request.json
-    cfg = load_config()
-    timeout = cfg.get('connection_timeout', 30)
-    
     try:
         if data.get('username'):
             token = login_with_creds(
@@ -771,7 +812,7 @@ def test_connection():
             response = requests.get(
                 f"{data['url']}/Users",
                 headers=get_auth_header(data.get('key')),
-                timeout=timeout
+                timeout=5
             )
             if response.ok:
                 return jsonify({"status": "ok", "key": data.get('key')})
@@ -929,6 +970,11 @@ def batch_download():
     if not server:
         return jsonify({"status": "error", "message": "Server not found"})
     
+    download_path = data['path']
+    space_ok, space_msg = check_disk_space(download_path)
+    if not space_ok:
+        return jsonify({"status": "error", "message": space_msg})
+    
     for item_id in data['item_ids']:
         tid = generate_id()
         with download_lock:
@@ -941,6 +987,29 @@ def batch_download():
         ).start()
     
     return jsonify({"status": "queued", "count": len(data['item_ids'])})
+
+
+@app.route('/api/disk_space', methods=['POST'])
+@login_required
+def get_disk_space():
+    """Get disk space info for a path"""
+    path = request.json.get('path', '/storage')
+    
+    try:
+        stat = shutil.disk_usage(path)
+        return jsonify({
+            "status": "ok",
+            "path": path,
+            "total": format_bytes(stat.total),
+            "used": format_bytes(stat.used),
+            "free": format_bytes(stat.free),
+            "percent_used": int((stat.used / stat.total) * 100)
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        })
 
 
 def recursive_resolve(server, item_id, base_path, tid, limit):
@@ -1055,10 +1124,21 @@ def browse_local():
             if entry.is_dir() and not entry.name.startswith('.')
         ])
         
+        try:
+            stat = shutil.disk_usage(path)
+            space_info = {
+                "free": format_bytes(stat.free),
+                "total": format_bytes(stat.total),
+                "percent_used": int((stat.used / stat.total) * 100)
+            }
+        except Exception:
+            space_info = None
+        
         return jsonify({
             "current": path,
             "folders": folders,
-            "parent": os.path.dirname(path) if path != '/storage' else None
+            "parent": os.path.dirname(path) if path != '/storage' else None,
+            "space": space_info
         })
     except Exception as e:
         return jsonify({
@@ -1136,17 +1216,15 @@ def sync_job():
 # --- Application Startup ---
 
 if __name__ == '__main__':
-    # Load cache
     load_cache_from_disk()
     
-    # Start worker threads
-    num_workers = load_config().get('max_concurrent_downloads', 2)
-    for _ in range(num_workers):
-        threading.Thread(target=worker, daemon=True).start()
+    cfg = load_config()
+    num_workers = cfg.get('max_concurrent_downloads', 2)
+    adjust_workers(num_workers)
     
-    # Setup and start scheduler
     setup_schedule()
     threading.Thread(target=schedule_runner, daemon=True).start()
     
-    log("JellyLooter v2.1.0 started")
+    log("JellyLooter v2.2.0 started")
+    log(f"Workers: {active_workers}, Speed limit: {cfg.get('speed_limit_kbs', 0)} KB/s")
     app.run(host='0.0.0.0', port=5000, threaded=True)

@@ -1,181 +1,188 @@
-# JellyLooter 🍇
+# 🍇 JellyLooter
 
-A web-based tool for downloading media from remote Jellyfin and Emby servers.
+Sync media content from remote Jellyfin/Emby servers to your local storage.
 
-![JellyLooter Screenshot](https://raw.githubusercontent.com/jlightner86/jellylooter/main/screenshots/browse.png)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-yellow?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/friendlymedia)
+
+---
 
 ## Features
 
-- 📁 **Browse Remote Libraries** - Visual browsing with poster artwork
-- ⬇️ **Multi-Select Downloads** - Ctrl+click or right-click to select multiple items
-- 🔄 **Auto-Sync** - Schedule automatic library syncing
-- ✓ **Duplicate Detection** - Skip content you already have locally
-- 🎨 **Dark/Light Themes** - Easy on the eyes, day or night
-- 🔒 **User Authentication** - Secure login with password protection
-- ⏱️ **Speed Limiting** - Control bandwidth usage
-- 📊 **Real-Time Progress** - Live download speed and progress tracking
+- 📁 **Browse Remote Libraries** - Navigate and preview content from multiple Jellyfin/Emby servers
+- 🔄 **Automatic Sync** - Schedule automatic downloads based on library mappings
+- ✓ **Duplicate Detection** - Scans your local library to avoid re-downloading content
+- ⏸️ **Download Control** - Pause, resume, and cancel downloads
+- 🚀 **Speed Limiting** - Optional bandwidth throttling (updates in real-time)
+- 👥 **Dynamic Workers** - Adjust concurrent downloads without restart
+- 🔐 **Authentication** - Secure login with remember me option
+- 🎨 **Clean UI** - Jellyfin-inspired dark theme
+
+---
 
 ## Installation
 
-### Unraid (Community Apps)
-
-1. Go to **Apps** tab in Unraid
-2. Search for "JellyLooter"
-3. Click **Install**
-4. Configure the paths and port
-5. Click **Apply**
-
-### Docker
-
-```bash
-docker run -d \
-  --name jellylooter \
-  -p 5000:5000 \
-  -v /path/to/config:/config \
-  -v /path/to/media:/storage \
-  -e TZ=America/New_York \
-  jlightner86/jellylooter:latest
-```
-
-### Docker Compose
+### Docker Compose (Recommended)
 
 ```yaml
 version: '3.8'
 services:
   jellylooter:
-    image: jlightner86/jellylooter:latest
+    build: .
     container_name: jellylooter
+    restart: unless-stopped
     ports:
       - "5000:5000"
     volumes:
       - ./config:/config
-      - /path/to/media:/storage
+      - /path/to/your/media:/storage  # Change this!
     environment:
-      - TZ=America/New_York
-      - PUID=1000
-      - PGID=1000
-    restart: unless-stopped
+      - TZ=America/Chicago
 ```
 
-### Manual Installation
+### Docker CLI
 
 ```bash
-# Clone the repository
-git clone https://github.com/jlightner86/jellylooter.git
-cd jellylooter
+docker build -t jellylooter .
 
-# Install dependencies
-pip install flask requests schedule
-
-# Run
-python app.py
+docker run -d \
+  --name jellylooter \
+  --restart unless-stopped \
+  -p 5000:5000 \
+  -v /path/to/config:/config \
+  -v /path/to/media:/storage \
+  -e TZ=America/Chicago \
+  jellylooter
 ```
 
-## First-Time Setup
+### Unraid
 
-1. Navigate to `http://your-server:5000`
-2. Create your admin account (username + password)
-3. Log in with your new credentials
-4. Go to **Settings** and add your remote Jellyfin/Emby servers
+1. Go to **Docker** → **Add Container**
+2. Configure:
+   - **Repository:** `jellylooter`
+   - **Port:** `5000` → `5000`
+   - **Path:** `/config` → `/mnt/user/appdata/jellylooter`
+   - **Path:** `/storage` → `/mnt/user` (or your media location)
+3. Click **Apply**
+
+---
+
+## Quick Start
+
+1. Access the web UI at `http://YOUR_IP:5000`
+2. Create your admin account on first run
+3. Add a remote Jellyfin/Emby server in Settings
+4. Browse and download!
+
+---
 
 ## Configuration
 
-### Adding Remote Servers
+### Adding a Remote Server
 
 1. Go to **Settings** tab
 2. Click **+ Add Remote Server**
-3. Enter server details:
-   - **Name**: Friendly name (e.g., "Friend's Server")
-   - **URL**: Server address (e.g., `http://192.168.1.100:8096`)
-   - **API Key** or **Username/Password**
-4. Click **Test Connection** to verify
-5. Click **Add Server**
+3. Enter server URL and API key (or username/password)
+4. Test connection and save
 
-### Getting an API Key
+### Duplicate Detection
 
-On the remote Jellyfin/Emby server:
-1. Go to **Dashboard** → **Advanced** → **API Keys**
-2. Click **+** to create a new key
-3. Name it "JellyLooter"
-4. Copy the generated key
+1. Configure your local Jellyfin/Emby server in Settings
+2. Click **Rebuild Cache** to scan your library
+3. Items you already have will be marked with ✓
 
-### Setting Up Duplicate Detection
+### Speed Limiting
 
-1. Go to **Settings** tab
-2. Under "Local Server", click **Configure Local Server**
-3. Enter your local Jellyfin/Emby server URL and API key
-4. Click **Save & Scan**
+- Set in **Settings** → **Advanced** → **Speed Limit**
+- Value is in KB/s (0 = unlimited)
+- Changes apply to active downloads within 10 seconds
 
-This will scan your local library and mark items you already have when browsing remote servers.
+### Concurrent Downloads
 
-### Auto-Sync
+- Set in **Settings** → **Advanced** → **Max Downloads**
+- Workers adjust dynamically - no restart needed!
 
-1. Go to **Sync** tab
-2. Click **+ Add Mapping**
-3. Select remote server and library
-4. Enter local destination path
-5. Enable **Auto-Sync** toggle
-6. Set sync time in **Settings** → **Advanced**
+---
 
-## Environment Variables
+## Troubleshooting
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TZ` | `America/New_York` | Timezone for scheduled tasks |
-| `PUID` | `99` | User ID for file permissions |
-| `PGID` | `100` | Group ID for file permissions |
-| `SECRET_KEY` | (auto-generated) | Session encryption key |
+### "No space left on device" Error
 
-## Volumes
+This usually means Docker can't write to your storage path. Check:
 
-| Path | Description |
-|------|-------------|
-| `/config` | Configuration files, auth data, cache |
-| `/storage` | Root directory for downloads |
+1. **Volume mapping is correct:**
+   ```bash
+   docker inspect jellylooter | grep -A5 "Mounts"
+   ```
 
-## Ports
+2. **Path exists and is writable:**
+   ```bash
+   docker exec jellylooter ls -la /storage
+   docker exec jellylooter touch /storage/test && rm /storage/test
+   ```
 
-| Port | Description |
-|------|-------------|
-| `5000` | Web interface |
+3. **Actual disk space:**
+   ```bash
+   df -h /mnt/user
+   ```
 
-## Screenshots
+### Downloads are slow
 
-### Browse Libraries
-![Browse](https://raw.githubusercontent.com/jlightner86/jellylooter/main/screenshots/browse.png)
+- Check **Speed Limit** in Settings (0 = unlimited)
+- Verify network to remote server
+- Try increasing **Chunk Size** in Advanced settings
 
-### Downloads Queue
-![Downloads](https://raw.githubusercontent.com/jlightner86/jellylooter/main/screenshots/downloads.png)
+### Can't connect to remote server
 
-### Settings
-![Settings](https://raw.githubusercontent.com/jlightner86/jellylooter/main/screenshots/settings.png)
+- Verify URL includes port (e.g., `http://192.168.1.100:8096`)
+- Check API key is valid
+- Ensure server is accessible from Docker network
 
-## FAQ
+---
 
-**Q: Does this work with Plex?**  
-A: No, only Jellyfin and Emby are supported.
+## Support the Project
 
-**Q: Is this legal?**  
-A: JellyLooter is a tool. Downloading content you have rights to is fine. Piracy is not.
+If JellyLooter is useful to you, consider buying me a coffee! ☕
 
-**Q: How do I reset my password?**  
-A: Delete `/config/auth.json` and restart the container. You'll be prompted to create a new account.
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-yellow?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/friendlymedia)
 
-**Q: Can I add multiple users?**  
-A: Currently only a single admin account is supported.
+Your support helps keep this project maintained and improved!
+
+---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/config` | GET/POST | Configuration |
+| `/api/status` | GET | Download status |
+| `/api/logs` | GET | Activity log |
+| `/api/pause` | POST | Pause downloads |
+| `/api/resume` | POST | Resume downloads |
+| `/api/cancel` | POST | Cancel download(s) |
+| `/api/sync` | POST | Trigger sync |
+| `/api/rebuild_cache` | POST | Rescan local library |
+| `/api/disk_space` | POST | Check disk space |
+
+---
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) or visit `/changelog` in the web interface.
+See [CHANGELOG.md](CHANGELOG.md) or the `/changelog` page in the app.
 
-## Contributing
-
-Pull requests welcome! Please open an issue first to discuss major changes.
+---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License
 
-## Disclaimer
+---
 
-This tool is for personal use. Respect copyright laws and only download content you have permission to access. The developers are not responsible for misuse.
+## Contributing
+
+Pull requests welcome! Please open an issue first for major changes.
+
+---
+
+<p align="center">
+  Made with ❤️ by <a href="https://buymeacoffee.com/friendlymedia">FriendlyMedia</a>
+</p>
