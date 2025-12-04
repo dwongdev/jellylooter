@@ -1408,10 +1408,23 @@ def browse_remote():
         local_ids = get_existing_ids()
         
         if data['parent_id'] == 'root':
-            items = requests.get(
+            views_response = requests.get(
                 f"{server['url']}/Users/{user_id}/Views",
-                headers=headers
-            ).json().get('Items', [])
+                headers=headers,
+                timeout=15
+            )
+            log(f"Views response: {views_response.status_code}")
+            
+            if not views_response.ok:
+                log(f"Views Error: {views_response.status_code} - {views_response.text[:200]}")
+                return jsonify({"items": [], "total": 0, "error": f"Failed to get libraries: {views_response.status_code}"})
+            
+            try:
+                views_data = views_response.json()
+                items = views_data.get('Items', [])
+            except Exception as e:
+                log(f"Views JSON Error: {e} - Response: {views_response.text[:200]}")
+                return jsonify({"items": [], "total": 0, "error": "Invalid response from server"})
             
             clean_items = [{
                 "Id": item['Id'],
@@ -1439,11 +1452,23 @@ def browse_remote():
                 'Limit': items_per_page
             }
             
-            response = requests.get(
+            items_response = requests.get(
                 f"{server['url']}/Users/{user_id}/Items",
                 headers=headers,
-                params=params
-            ).json()
+                params=params,
+                timeout=30
+            )
+            log(f"Items response: {items_response.status_code}")
+            
+            if not items_response.ok:
+                log(f"Items Error: {items_response.status_code} - {items_response.text[:200]}")
+                return jsonify({"items": [], "total": 0, "error": f"Failed to get items: {items_response.status_code}"})
+            
+            try:
+                response = items_response.json()
+            except Exception as e:
+                log(f"Items JSON Error: {e} - Response: {items_response.text[:200]}")
+                return jsonify({"items": [], "total": 0, "error": "Invalid response from server"})
             
             clean_items = []
             for item in response.get('Items', []):
