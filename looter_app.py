@@ -1501,11 +1501,27 @@ def browse_remote():
                     tmdb_key = f"tmdb_{providers.get('Tmdb')}"
                     exists = imdb_key in local_ids or tmdb_key in local_ids
                 
+                # Check what image types are available
+                image_tags = item.get('ImageTags', {})
+                has_primary = 'Primary' in image_tags
+                has_thumb = 'Thumb' in image_tags
+                has_backdrop = 'Backdrop' in image_tags or item.get('BackdropImageTags', [])
+                
+                # Determine best image type to use (prefer Primary for posters)
+                image_type = None
+                if has_primary:
+                    image_type = 'Primary'
+                elif has_thumb:
+                    image_type = 'Thumb'
+                elif has_backdrop:
+                    image_type = 'Backdrop'
+                
                 clean_items.append({
                     "Id": item['Id'],
                     "Name": item['Name'],
                     "IsFolder": is_folder,
-                    "HasImage": 'Primary' in item.get('ImageTags', {}),
+                    "HasImage": image_type is not None,
+                    "ImageType": image_type,
                     "ExistsLocally": exists,
                     "Type": item.get('Type', 'Unknown'),
                     "SeriesName": item.get('SeriesName'),
@@ -1758,10 +1774,16 @@ def sync_job():
         
         try:
             headers = get_auth_header(server['key'])
-            user_id = requests.get(
-                f"{server['url']}/Users",
-                headers=headers
-            ).json()[0]['Id']
+            
+            # Use stored user_id if available (for username/password auth)
+            user_id = server.get('user_id')
+            
+            if not user_id:
+                user_id = requests.get(
+                    f"{server['url']}/Users",
+                    headers=headers,
+                    timeout=10
+                ).json()[0]['Id']
             
             items = requests.get(
                 f"{server['url']}/Users/{user_id}/Items",
