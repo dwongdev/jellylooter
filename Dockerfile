@@ -2,7 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
+# Install system dependencies (including FFmpeg for transcoding)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -19,4 +24,5 @@ EXPOSE 5000
 
 ENV PYTHONUNBUFFERED=1
 
+# Use gevent for async if available, fallback to default
 CMD ["python", "looter_app.py"]

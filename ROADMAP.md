@@ -1,237 +1,207 @@
 # JellyLooter Roadmap
 
-## Current Version: 2.3.0
+## Current Version: 2.4.1
 
 ---
 
-## v2.4.1 - Quality of Life Update
+## v2.4.2 - Quick Fixes (Current)
 
-**Development:** Local testing on Unraid before public release
-
-### Bug Fixes
-| # | Issue | Priority |
-|---|-------|----------|
-| 1 | Mobile view broken (displays as desktop) | Critical |
-| 2 | Language support missing from UI | High |
-| 3 | Library poster images wrong aspect ratio | High |
-
-### New Features
-| # | Feature | Description | Priority |
-|---|---------|-------------|----------|
-| 4 | Download progress in title bar | Show "JellyLooter (3 ⬇)" in browser tab | High |
-| 5 | Bulk select all on page | Checkbox to select/deselect all visible items | High |
-| 6 | Search/filter within library | Filter current view by name | High |
-| 7 | Download history | Log of completed downloads with timestamps | Medium |
-| 8 | Estimated time remaining | Based on current speed | Medium |
-| 9 | Dark/Light mode toggle in header | More visible location | Low |
+| Fix | Description |
+|-----|-------------|
+| Folder names visible | Show titles on folder items |
+| Single-click to select | Works on folders and media |
+| Double-click to navigate | Enter folders |
+| Select All includes folders | Can select entire shows |
 
 ---
 
-## v2.5.0 - Performance & Security Update
-
-### New Features
-| # | Feature | Description | Priority |
-|---|---------|-------------|----------|
-| 1 | Stop after current downloads | Finish active downloads but don't start new ones from queue | Medium |
-
-### Performance Optimization
-
-**Current Problems:**
-| Issue | Likely Cause |
-|-------|--------------|
-| UI freezes during downloads | Blocking I/O on main thread |
-| Sluggish response | Status polling too heavy |
-| High CPU usage | Inefficient loops, no caching |
-| Memory bloat | Holding too much in memory |
-
-**Optimization Targets:**
-| Area | Current | Optimized |
-|------|---------|-----------|
-| Status polling | Every 1 second, full data | Every 2-3 sec, delta updates only |
-| Download workers | May block Flask thread | Fully async, separate process |
-| File I/O | Synchronous | Async with threading |
-| Config loading | Read from disk every request | Cache in memory, reload on change |
-| Local cache | Full scan on rebuild | Incremental updates |
-| Logging | Unbounded list | Ring buffer (last 500 entries) |
-| Frontend | Re-render everything | Only update changed elements |
-
-**Technical Fixes:**
-1. Move downloads to separate process (multiprocessing)
-2. Async Flask with gevent OR switch to FastAPI
-3. Smarter status polling (delta updates)
-4. Config caching with mtime check
-5. Limit log buffer with deque(maxlen=500)
-6. Frontend incremental DOM updates
-
-### Security Hardening
-
-**Current Vulnerabilities:**
-| Risk | Issue | Severity |
-|------|-------|----------|
-| Path Traversal | `browse_local` may allow `../../etc/passwd` | Critical |
-| No CSRF Protection | Forms vulnerable to cross-site attacks | High |
-| Secrets in Config | API keys stored in plain text JSON | High |
-| No Rate Limiting | Login brute-force possible | High |
-| Session Security | Flask secret key handling | Medium |
-| XSS Potential | User input in templates | Medium |
-| No HTTPS Enforcement | Credentials sent in clear | Medium |
-
-**Security Fixes:**
-| Priority | Fix | Effort |
-|----------|-----|--------|
-| 1 | Path traversal protection | Easy |
-| 2 | Rate limiting on login (5/min) | Easy |
-| 3 | Input validation (URL, API key format) | Medium |
-| 4 | Security headers (X-Frame-Options, CSP, etc.) | Easy |
-| 5 | CSRF protection (flask-wtf) | Medium |
-| 6 | Session hardening (secure cookies) | Easy |
-| 7 | Encrypt stored API keys | Medium |
-| 8 | HTTPS documentation | Easy |
-
-### *arr Integration (Basic)
-
-**Supported Apps:**
-| App | Media Type |
-|-----|------------|
-| Sonarr | TV Shows |
-| Radarr | Movies |
-| Lidarr | Music |
-| Readarr | Books |
-
-**v2.5.0 Features:**
-- Download to monitored folder
-- API trigger after download complete
-- Trigger library scan on import
-
-**Settings UI:**
-```
-┌─────────────────────────────────────┐
-│ *arr Integration                    │
-├─────────────────────────────────────┤
-│ Sonarr                              │
-│ URL: [http://localhost:8989    ]    │
-│ API Key: [••••••••••••••••••••]     │
-│ [Test] ✓ Connected                  │
-│                                     │
-│ Radarr                              │
-│ URL: [http://localhost:7878    ]    │
-│ API Key: [••••••••••••••••••••]     │
-│ [Test] ✓ Connected                  │
-│                                     │
-│ ☑ Notify on download complete       │
-│ ☑ Trigger library scan              │
-└─────────────────────────────────────┘
-```
-
----
-
-## v3.0.0 - Pro Features & Licensing
+## v3.0.0 - The Big One
 
 ### Licensing System
 
 **Tiers:**
-| Tier | Price | Duration |
-|------|-------|----------|
-| Free | $0 | Forever |
-| Trial | $0 | 14 days (user-activated) |
-| Pro | $5 | Lifetime |
+| Tier | Price | Duration | Features |
+|------|-------|----------|----------|
+| Free | $0 | Forever | 2 remote, 1 local, 1 sync, ads |
+| Trial | $0 | 14 days (user-activated) | All Pro features |
+| Pro | $10 | Lifetime | Unlimited everything, no ads |
 
-**Trial System:**
-- User must click to activate (not automatic)
-- 14 days from activation
-- Floating banner reminder at bottom of page
-- Reverts to Free on expiration (no data loss)
-- Cannot re-activate trial (tied to config)
-
-### Banner/Advertisement System
-
-| Tier | Bottom Banner | Header Button |
-|------|---------------|---------------|
-| Free | Ko-fi support banner (permanent) | ❤️ Support button |
-| Trial | "Pro Trial: X days left - Buy $5" | ❤️ Support button |
-| Pro | None - clean UI | None |
-
-### Free vs Pro Features
-
-| Feature | Free | Pro |
-|---------|------|-----|
-| Remote servers | 1 | Unlimited |
-| Local servers | 1 | Unlimited |
-| Downloads | Manual only | Auto-sync scheduling |
-| Items per page | 50 max | Unlimited |
-| Theme | Default only | Custom themes + pre-built |
-| Download history | ❌ | ✅ |
-| Search/filter | ❌ | ✅ |
-| Download scheduling | ❌ | ✅ |
-| Bandwidth scheduling | ❌ | ✅ |
-| Discord/Telegram notifications | ❌ | ✅ |
-| Download stats dashboard | ❌ | ✅ |
-| Import/Export config | ❌ | ✅ |
-| Full *arr integration | ❌ | ✅ |
-| Ads/Banners | Yes | None |
-
-### Pro-Only Features (Never in Free)
-- Multiple local servers
-- Multiple remote servers
-- Auto-sync scheduling
-- Custom themes
-- Notifications
-- Full *arr integration
-
-### Customization (Pro)
+**Gumroad Integration:**
 | Feature | Description |
 |---------|-------------|
-| Custom themes | Color picker for accent, background, text colors |
-| Pre-built themes | Plex orange, Emby green, Netflix red, custom CSS |
-| Custom logo/branding | Replace JellyLooter logo with their own |
-| Dashboard layout | Rearrange panels, hide/show sections |
+| License key purchase | Via Gumroad storefront |
+| Hybrid validation | Online verify when possible, offline fallback |
+| Instant delivery | Key emailed automatically |
 
-### Power Features (Pro)
+**Banner System:**
+| Tier | Banner |
+|------|--------|
+| Free | Ko-fi/Gumroad support banner (bottom of page) |
+| Trial | "Pro Trial: X days left - Buy $10" |
+| Pro | None - clean UI |
+
+---
+
+### Free Features (everyone)
+
 | Feature | Description |
 |---------|-------------|
-| Download scheduling | Only download between specific hours (e.g., 2am-6am) |
-| Bandwidth scheduling | Full speed at night, throttled during day |
-| Transcode on download | Convert to different format/quality |
-| Watch folders | Auto-download when new content appears on remote |
+| 2 remote servers | Connect to friends' libraries |
+| 1 local server | For duplicate detection |
+| 1 auto-sync mapping | Basic automation |
+| Download history | Track completed downloads |
+| Search/filter | Find items in current view |
+| 100 items per page max | |
+| Folder names visible | Titles shown on folders |
+| Single-click select | Works on shows/folders too |
+| Double-click to navigate | Enter folders |
+| Hover tooltips on posters | Show title on hover |
+| Keyboard shortcuts | Space=select, Enter=download, arrows=navigate |
+| "What's New" indicators | Highlight new content since last visit |
+| Remember last location | Per server |
+| Stop after current downloads | Finish queue gracefully |
+| Interaction hints | Help text: "Single-click to select • Double-click to open folders" |
 
-### Organization (Pro)
+---
+
+### Pro Features ($10 lifetime)
+
+**Unlimited:**
 | Feature | Description |
 |---------|-------------|
-| Collections/Playlists | Group items to download together |
-| Tags/Labels | Organize downloads with custom tags |
-| Favorites | Star items to download later |
-| Download profiles | Save different settings (4K profile, mobile profile) |
+| Unlimited remote servers | Connect to as many as you want |
+| Unlimited local servers | Multiple Jellyfin/Emby instances |
+| Unlimited auto-sync mappings | Full automation |
+| Unlimited items per page | No pagination limits |
 
-### Notifications (Pro)
+**Media Processing:**
 | Feature | Description |
 |---------|-------------|
-| Discord webhook | Notify when downloads complete |
-| Email notifications | Daily/weekly digest |
+| Transcode on download | Convert during download |
+| H.265 preset | Smaller files, same quality |
+| Mobile-friendly preset | 720p, lower bitrate |
+| Custom transcode | Pick codec, resolution, bitrate |
+| Smart sync | Only download if better quality than local |
+| Exclude patterns | Skip "Sample" files, specific codecs |
+
+**Automation:**
+| Feature | Description |
+|---------|-------------|
+| Download scheduling | Only download between X-Y hours |
+| Bandwidth scheduling | Full speed nights, throttled days |
+| Download priorities | Prioritize certain shows/movies |
+| *arr integration | Sonarr, Radarr, Lidarr |
+
+**Notifications:**
+| Feature | Description |
+|---------|-------------|
+| Discord webhook | Notify on download complete |
 | Telegram bot | Push notifications |
-| Apprise integration | Supports 80+ notification services |
+| Apprise | 80+ notification services |
 
-### Analytics (Pro)
+**Customization:**
+| Feature | Description |
+|---------|-------------|
+| Custom themes | Color picker for accent, background, text |
+| Pre-built themes | Plex orange, Emby green, Netflix red |
+| No ads/banners | Clean UI |
+
+**Analytics:**
 | Feature | Description |
 |---------|-------------|
 | Download stats | Total downloaded, by server, by month |
 | Storage dashboard | Visual breakdown of disk usage |
 | Speed graphs | Historical download speed chart |
-| Activity calendar | Heatmap of download activity |
 
-### Advanced (Pro)
+**Advanced:**
 | Feature | Description |
 |---------|-------------|
-| API access | REST API for automation |
-| Webhook triggers | Trigger external scripts on events |
 | Import/Export config | Backup and restore settings |
+| API access | REST API for automation |
 
-### Full *arr Integration (Pro)
+---
+
+### Performance Optimization
+
+**Problems to fix:**
+| Issue | Cause |
+|-------|-------|
+| UI freezes during downloads | Blocking I/O on main thread |
+| Sluggish response | Status polling too heavy |
+| High CPU usage | Inefficient loops, no caching |
+| Memory bloat | Holding too much in memory |
+
+**Optimizations:**
+| Area | Current | Optimized |
+|------|---------|-----------|
+| Status polling | Every 1 second, full data | Every 2-3 sec, delta updates only |
+| Download workers | May block Flask thread | Separate process (multiprocessing) |
+| File I/O | Synchronous | Async with threading |
+| Config loading | Read from disk every request | Cache in memory, reload on change |
+| Local cache | Full scan on rebuild | Incremental updates |
+| Logging | Unbounded list | Ring buffer (last 500 entries) |
+| Frontend | Re-render everything | Only update changed DOM elements |
+
+---
+
+### Security Hardening
+
+| Priority | Fix | Description |
+|----------|-----|-------------|
+| 1 | Path traversal protection | Block `../../` attacks |
+| 2 | Rate limiting on login | 5 attempts per minute |
+| 3 | Input validation | URL format, API key format |
+| 4 | Security headers | X-Frame-Options, CSP, etc. |
+| 5 | CSRF protection | Protect forms from cross-site attacks |
+| 6 | Session hardening | Secure, HttpOnly, SameSite cookies |
+| 7 | Password hashing | bcrypt (never plain text) |
+| 8 | Session timeout | Configurable auto-logout |
+| 9 | Trusted proxy support | X-Forwarded-* headers |
+| 10 | Force HTTPS option | For reverse proxy setups |
+
+**Security Settings UI:**
+```
+┌─────────────────────────────────────┐
+│ Security Settings                   │
+├─────────────────────────────────────┤
+│ ☑ Enable authentication             │
+│                                     │
+│ Username: [admin            ]       │
+│ Password: [••••••••••••••••]        │
+│                                     │
+│ Session timeout: [30 mins   ▼]      │
+│                                     │
+│ ☑ Force HTTPS (reverse proxy)       │
+│ ☑ Trust X-Forwarded headers         │
+│ Trusted proxy IPs: [172.17.0.0/16]  │
+└─────────────────────────────────────┘
+```
+
+---
+
+### UI/UX Improvements
+
 | Feature | Description |
 |---------|-------------|
-| Search wanted | Show Sonarr/Radarr wanted/missing list |
-| Auto-match | Link JellyLooter items to *arr entries |
-| Quality profiles | Respect *arr quality settings |
-| Status sync | Show import status in JellyLooter |
+| Faster UI | No sluggishness during downloads |
+| Mobile hamburger menu | Downloads & Stats moved here |
+| Remove bottom sheet | Cleaner mobile experience |
+| Better error messages | Clear, actionable |
+| Interaction hints | "Single-click to select • Double-click to open folders" |
+| Folder hover tooltip | "Double-click to open" |
+
+---
+
+### Integrations
+
+| Service | Purpose |
+|---------|---------|
+| Gumroad | License key purchase & verification |
+| Sonarr | TV show management (Pro) |
+| Radarr | Movie management (Pro) |
+| Lidarr | Music management (Pro) |
+| Apprise | 80+ notification services (Pro) |
+| FFmpeg | Transcoding (Pro) |
 
 ---
 
@@ -249,22 +219,23 @@
 ## Technical Notes
 
 ### License Key System
-- Simple key validation (no server required)
-- Keys generated via email hash or random string
-- Blacklist leaked keys in future updates
-- Store in config.json
+- Gumroad handles key generation and purchase
+- Hybrid validation: online when possible, offline fallback
+- Keys stored in config.json
+- Format validation works offline
 
-### Platforms for Selling
-| Platform | Fee | Notes |
-|----------|-----|-------|
-| Ko-fi | 0% | Already set up |
-| Gumroad | 10% | Built-in license keys |
-| LemonSqueezy | 5-8% | Modern, good for software |
+### Platforms
+| Platform | Use |
+|----------|-----|
+| Gumroad | License sales (10% fee) |
+| Ko-fi | Tips/donations (0% fee) |
+| GitHub | Source code, issues, releases |
 
-### Anti-Abuse (Light Touch)
-- Config-based trial tracking (`trial_started: timestamp`)
-- Hash of server URL + install path as fingerprint
-- Not worth heavy DRM for $5 - honest people will pay
+### Testing Options (for later)
+- Local Docker testing (no Unraid needed)
+- Dev mode flag (`--dev`) for mock data
+- Automated pytest suite for security
+- Mock Jellyfin server for API testing
 
 ---
 
@@ -272,6 +243,7 @@
 
 - All development/testing done locally on Unraid before public release
 - Ko-fi link: https://ko-fi.com/jellyloot
+- Gumroad: TBD
 - No priority support offered - documentation and community only
 
 ---

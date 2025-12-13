@@ -1,238 +1,289 @@
-# 🍇 JellyLooter v2.4.1
+# JellyLooter v3.0.0
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-yellow?style=for-the-badge&logo=ko-fi)](https://ko-fi.com/jellyloot)
+**Sync media from remote Jellyfin/Emby servers to your local storage.**
 
-Sync media content from remote Jellyfin/Emby servers to your local storage.
+Built by Friendly Media — because your friends' Jellyfin libraries aren't going to backup themselves.
 
-![JellyLooter Screenshot](https://raw.githubusercontent.com/jlightner86/jellylooter/main/icon.png)
+![JellyLooter Banner](https://raw.githubusercontent.com/friendlymedia/jellylooter/main/screenshots/banner.png)
 
-## ✅ Compatibility
+---
 
-| Platform | Status |
-|----------|--------|
-| **Unraid 7.2.2** | ✅ Confirmed Working |
-| **Unraid 7.2.0** | ✅ Confirmed Working |
-| **Docker (Linux)** | ✅ Confirmed Working |
-| **Docker (Windows)** | ✅ Confirmed Working |
-| **Docker (macOS)** | ✅ Should Work |
+## Screenshots
 
-## ✨ Features
+| Browse Library | Download Queue | Settings |
+|----------------|----------------|----------|
+| ![Browse](https://raw.githubusercontent.com/friendlymedia/jellylooter/main/screenshots/browse.png) | ![Queue](https://raw.githubusercontent.com/friendlymedia/jellylooter/main/screenshots/queue.png) | ![Settings](https://raw.githubusercontent.com/friendlymedia/jellylooter/main/screenshots/settings.png) |
 
-- 📁 **Browse Remote Libraries** - Navigate and preview content from multiple Jellyfin/Emby servers
-- 🔄 **Automatic Sync** - Schedule automatic downloads based on library mappings
-- ✓ **Duplicate Detection** - Scans your local library to avoid re-downloading content
-- ⏸️ **Download Control** - Pause, resume, and cancel downloads
-- 🚀 **Speed Limiting** - Optional bandwidth throttling (updates in real-time)
-- 👥 **Dynamic Workers** - Adjust concurrent downloads without restart
-- 🔐 **Optional Authentication** - Secure login (disabled by default)
-- 📱 **Mobile Friendly** - Responsive design works on phones and tablets
-- 🌍 **Multi-Language** - English, Spanish, German (fully translated UI)
-- 🎨 **Clean UI** - Jellyfin-inspired dark/light theme with Grid/List view toggle
-- 📊 **Download History** - Track completed downloads with timestamps
-- ⏱️ **ETA Display** - See estimated time remaining on active downloads
+| Rating Overlays | Quality Badges | Pro Features |
+|-----------------|----------------|--------------|
+| ![Ratings](https://raw.githubusercontent.com/friendlymedia/jellylooter/main/screenshots/ratings.png) | ![Quality](https://raw.githubusercontent.com/friendlymedia/jellylooter/main/screenshots/quality.png) | ![Pro](https://raw.githubusercontent.com/friendlymedia/jellylooter/main/screenshots/pro.png) |
 
-## 🆕 What's New in v2.4.1
+---
 
-- **Full UI Translation** - All modals, buttons, and messages now translate properly
-- **Download History** - View completed downloads with timestamps
-- **ETA on Downloads** - See estimated time remaining
-- **Quick Path Selection** - Jump to mapped folders when downloading
-- **Filter/Search** - Find items in your current view
-- **Select All/Deselect All** - Bulk selection made easy
-- **Title Bar Download Count** - See active downloads in browser tab
-- **Fixed username/password auth** - Batch downloads now work with user credentials
-- **Improved poster display** - Better image handling for all content types
+## What's New in v3.0.0
 
-## 🐳 Docker Installation
+This is a major release with Pro features, security hardening, and UI enhancements.
 
-### Docker Compose (Recommended)
+### ⭐ Poster Overlays (NEW!)
+- **Rating badges** - IMDB/TMDB ratings displayed on posters
+- **Quality badges** - 4K, 1080p, 720p, HDR, Dolby Vision, Atmos
+- **Content ratings** - PG-13, R, TV-MA displayed on posters
+- **Toggleable** - Enable/disable in Advanced Settings
 
-```yaml
-version: '3.8'
-services:
-  jellylooter:
-    image: ghcr.io/jlightner86/jellylooter:latest
-    container_name: jellylooter
-    restart: unless-stopped
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./config:/config
-      - /path/to/your/media:/storage  # Change this!
-    environment:
-      - TZ=America/Chicago
-```
+### ⌨️ Keyboard Shortcuts
+- Press `?` to see all shortcuts
+- Quick navigation (1, 2, 3 for tabs)
+- Download controls (P=pause, D=download, Ctrl+A=select all)
 
-### Docker CLI (Linux/macOS)
+### 📊 Download Statistics
+- Real-time download speed display
+- Total downloaded tracker
+- Queue status at a glance
+
+### 📦 Collection/Playlist Support
+- "Download All" button on collections and playlists
+- Automatically fetches all movies/episodes
+- One-click batch download
+
+### 💾 Backup & Restore
+- Export configuration to JSON
+- Import settings (API keys masked for security)
+- Health check endpoint (`/health`) for Docker monitoring
+
+### 🔄 Download Resume (Pro)
+- Interrupted downloads can be resumed
+- Partial files saved automatically
+- Resume from where you left off
+
+### 🎨 Visual Enhancements
+- GPU transcoding support (NVENC, QuickSync, VAAPI)
+- Custom themes (14 presets including seasonal)
+- Movie folder naming with year (e.g., "Inception (2010)/")
+
+### 🔗 *arr Integration
+- Sonarr/Radarr folder naming support
+- Use exact folder names from your *arr apps
+- Auto-refresh cache for folder lookups
+
+---
+
+## Free vs Pro
+
+| Feature | Free | Pro ($10 lifetime) |
+|---------|------|--------------------|
+| Remote servers | 2 | Unlimited |
+| Local servers | 1 | Unlimited |
+| Concurrent downloads | 2 | 10 |
+| Auto-sync mappings | 1 | Unlimited |
+| Items per page | 100 | Unlimited |
+| Rating overlays | ✅ | ✅ |
+| Quality badges | ✅ | ✅ |
+| Download history | ✅ | ✅ |
+| Keyboard shortcuts | ✅ | ✅ |
+| Download statistics | ✅ | ✅ |
+| Collection download | ✅ | ✅ |
+| Config backup/restore | ✅ | ✅ |
+| Health check endpoint | ✅ | ✅ |
+| Download resume | ❌ | ✅ |
+| Notifications | ❌ | ✅ Discord, Telegram, 80+ |
+| Custom themes | ❌ | ✅ 14 presets + custom |
+| GPU transcoding | ❌ | ✅ NVENC, QuickSync, VAAPI |
+| Download scheduling | ❌ | ✅ |
+| *arr integration | ❌ | ✅ |
+| Analytics | ❌ | ✅ |
+| Ads/banner | Yes | None |
+
+**Get Pro:** [lightwave43.gumroad.com/l/rmtmrr](https://lightwave43.gumroad.com/l/rmtmrr)
+
+---
+
+## Compatibility
+
+| Platform | Version | Status |
+|----------|---------|--------|
+| Unraid | 7.0+ / 7.2.2 | ✅ Tested |
+| Docker | Linux/macOS/Windows | ✅ Tested |
+| Jellyfin | 10.8+ | ✅ Supported |
+| Emby | 4.7+ | ✅ Supported |
+
+---
+
+## Quick Start
+
+### Docker Run
 
 ```bash
 docker run -d \
   --name jellylooter \
-  --restart unless-stopped \
   -p 5000:5000 \
   -v /path/to/config:/config \
   -v /path/to/media:/storage \
-  -e TZ=America/Chicago \
-  ghcr.io/jlightner86/jellylooter:latest
+  ghcr.io/friendlymedia/jellylooter:latest
 ```
 
-### 🪟 Docker on Windows
-
-#### Option 1: Docker Desktop with WSL2 (Recommended)
-
-1. Install [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
-2. Enable WSL2 backend in Docker Desktop settings
-3. Open PowerShell or Command Prompt and run:
-
-```powershell
-# Create directories for config and media
-mkdir C:\jellylooter\config
-mkdir C:\jellylooter\media
-
-# Run the container
-docker run -d `
-  --name jellylooter `
-  --restart unless-stopped `
-  -p 5000:5000 `
-  -v C:\jellylooter\config:/config `
-  -v C:\jellylooter\media:/storage `
-  -e TZ=America/Chicago `
-  ghcr.io/jlightner86/jellylooter:latest
-```
-
-#### Option 2: Docker Compose on Windows
-
-Create a `docker-compose.yml` file:
+### Docker Compose
 
 ```yaml
-version: '3.8'
+version: "3"
 services:
   jellylooter:
-    image: ghcr.io/jlightner86/jellylooter:latest
+    image: ghcr.io/friendlymedia/jellylooter:latest
     container_name: jellylooter
-    restart: unless-stopped
     ports:
       - "5000:5000"
     volumes:
-      - C:\jellylooter\config:/config
-      - C:\jellylooter\media:/storage
-      # Or use a different drive:
-      # - D:\Media:/storage
-    environment:
-      - TZ=America/Chicago
+      - ./config:/config
+      - /mnt/media:/storage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 ```
 
-Then run:
+### Windows Docker Desktop
+
 ```powershell
-docker-compose up -d
+docker run -d `
+  --name jellylooter `
+  -p 5000:5000 `
+  -v C:\JellyLooter\config:/config `
+  -v D:\Media:/storage `
+  ghcr.io/friendlymedia/jellylooter:latest
 ```
 
-#### Windows Path Examples
+### Unraid
 
-| Windows Path | Docker Mount |
-|--------------|--------------|
-| `C:\Users\You\Media` | `-v C:\Users\You\Media:/storage` |
-| `D:\Movies` | `-v D:\Movies:/storage` |
-| `\\NAS\Media` | Use mapped drive letter instead |
-
-> **Note:** For network shares (NAS), map them to a drive letter first (e.g., `Z:\`) then use that in Docker.
-
-### 🐧 Unraid Installation
-
-1. Go to **Docker → Add Container**
-2. Configure:
-   - **Repository:** `ghcr.io/jlightner86/jellylooter:latest`
-   - **Port:** `5000` → `5000`
-   - **Path:** `/config` → `/mnt/user/appdata/jellylooter`
-   - **Path:** `/storage` → `/mnt/user` (or your media location)
-3. Click **Apply**
-
-Or install from Community Apps using the included `jellylooter.xml` template.
-
-**✅ Confirmed working on Unraid 7.2.0 and 7.2.2**
-
-## 🚀 Quick Start
-
-1. Access the web UI at `http://YOUR_IP:5000`
-2. Go to **Settings** and add a remote Jellyfin/Emby server
-3. **Test the connection** before adding
-4. Browse libraries and download!
-
-## ⚙️ Configuration
-
-### Adding a Remote Server
-1. Go to **Settings** tab
-2. Click **Add Remote Server**
-3. Enter server URL and API key (or username/password)
-4. **Test connection first** (important!)
-5. Click **Add Server**
-
-> **Important:** If using username/password authentication, always test the connection before adding. Servers must be re-added if you change auth methods.
-
-### Duplicate Detection
-1. Configure your local Jellyfin/Emby server in Settings
-2. Click **Rebuild Cache** to scan your library
-3. Items you already have will be marked with ✓
-
-### Library Mappings (Auto-Sync)
-1. Go to **Sync** tab
-2. Click **Add Mapping**
-3. Select a remote server and library
-4. Choose a local destination folder
-5. Enable **Auto-Sync** to download new content automatically
-
-### Download Order Options
-- **Library Order** - Match remote server order
-- **Complete Shows First** - Download all episodes of one show before moving to next
-- **Season Round Robin** - First season of each show, then second seasons, etc.
-- **Episode Round Robin** - First episode of each show, then second episodes, etc.
-- **Alphabetical** - Sort by title
-- **Random** - Shuffle order
-
-### Speed Limiting
-- Set in **Settings → Advanced → Speed Limit**
-- Value is in KB/s (0 = unlimited)
-- Changes apply to active downloads within 10 seconds
-
-### Changing Language
-- Go to **Settings → Appearance → Language**
-- Select English, Spanish, or German
-- Click **Save** - page will refresh with new language
-
-## 🔧 Troubleshooting
-
-### "Expecting value" Error on Downloads
-This usually means authentication failed. Try:
-1. Delete the server from Settings
-2. Re-add with correct credentials
-3. **Test connection** before adding
-
-### "No space left on device" Error
-Check your Docker volume mapping:
-```bash
-docker inspect jellylooter | grep -A10 "Mounts"
-docker exec jellylooter df -h /storage
-```
-
-### View Logs
-```bash
-docker logs -f jellylooter
-```
-
-### Windows: "path not found" Error
-- Use forward slashes or escaped backslashes in paths
-- Ensure Docker Desktop has access to the drive (Settings → Resources → File Sharing)
-
-## ☕ Support the Project
-
-If JellyLooter is useful to you, consider supporting on Ko-fi!
-
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-yellow?style=for-the-badge&logo=ko-fi)](https://ko-fi.com/jellyloot)
-
-## 📜 License
-
-MIT License
+1. Install from Community Applications (search "JellyLooter")
+2. Or manually add using the included `jellylooter.xml` template
+3. Configure paths and optional GPU passthrough for transcoding
 
 ---
 
-JellyLooter v2.4.1 • Made with ❤️ by [FriendlyMedia](https://ko-fi.com/jellyloot)
+## Health Check Endpoint
+
+JellyLooter provides a `/health` endpoint for monitoring:
+
+```bash
+curl http://localhost:5000/health
+```
+
+Returns JSON with status, disk space, queue info, and server connectivity. Returns HTTP 200 if healthy, 503 if unhealthy (e.g., disk < 1GB free).
+
+---
+
+## Features
+
+### Core Features (Free)
+- 📺 Browse remote Jellyfin/Emby libraries
+- ⬇️ Download movies, shows, seasons, episodes
+- 📝 Automatic subtitle download (SRT, ASS, VTT)
+- 🔍 Duplicate detection with local server
+- ⭐ Rating overlays (IMDB/TMDB/Rotten Tomatoes)
+- 📊 Quality badges (4K, HDR, Dolby Vision, Atmos)
+- 📦 Collection/Playlist batch download
+- ⌨️ Keyboard shortcuts (press ? for help)
+- 📈 Download statistics widget
+- 💾 Config backup & restore
+- 🌐 Multi-language UI (English, Spanish, German)
+- 🌙 Dark/Light theme
+- ⏸️ Download queue with pause/resume
+- 📈 Progress tracking with ETA
+- 📜 Download history
+
+### Pro Features ($10 lifetime)
+- 🖥️ **Unlimited servers** - Connect to all your friends
+- 🔄 **Download resume** - Resume interrupted downloads from where you left off
+- 🔔 **Notifications** - Discord, Telegram, Email, and 80+ services via Apprise
+- 🎬 **GPU Transcoding** - NVENC (NVIDIA), QuickSync (Intel), VAAPI (AMD/Intel)
+- ⏰ **Download scheduling** - Only download during off-peak hours
+- 📉 **Bandwidth scheduling** - Full speed at night, throttled during day
+- 🎨 **Custom themes** - 14 presets (seasonal, platform) or custom colors
+- 📁 **\*arr integration** - Sonarr/Radarr folder naming
+- 📊 **Analytics dashboard** - Download stats and graphs
+- ⬇️ **10 concurrent downloads** - vs 2 for free tier
+- ✨ **No ads** - Clean, distraction-free UI
+
+---
+
+## Security
+
+v3.0.0 includes significant security improvements:
+
+- ✅ bcrypt password hashing
+- ✅ Rate limiting (5 login attempts/minute)
+- ✅ Path traversal protection
+- ✅ Input validation
+- ✅ Security headers (X-Frame-Options, CSP)
+- ✅ Session timeout (configurable)
+- ✅ Reverse proxy support (X-Forwarded-* headers)
+
+### Reverse Proxy Setup
+
+If exposing JellyLooter externally:
+
+1. Enable "Trust X-Forwarded headers" in Security Settings
+2. Add your proxy IP to "Trusted proxy IPs"
+3. Use strong passwords
+4. Consider using Cloudflare or similar for additional protection
+
+---
+
+## Configuration
+
+Access the web UI at `http://your-server:5000`
+
+### First Run
+1. (Optional) Enable authentication in Settings → Security
+2. Add a remote server (your friend's Jellyfin/Emby)
+3. Test the connection before saving
+4. Configure local server for duplicate detection
+5. Start browsing and downloading!
+
+### Settings Overview
+
+| Setting | Description |
+|---------|-------------|
+| Remote Servers | Jellyfin/Emby servers to download from |
+| Local Server | Your Jellyfin for duplicate detection |
+| Speed Limit | Throttle download speed (0 = unlimited) |
+| Max Downloads | Concurrent download threads |
+| Show Ratings | Toggle rating overlays on posters |
+| Show Quality | Toggle quality badges (4K, HDR, etc.) |
+
+---
+
+## Support
+
+- **Buy Pro License:** [lightwave43.gumroad.com/l/rmtmrr](https://lightwave43.gumroad.com/l/rmtmrr)
+- **GitHub:** [Issues & Discussions](https://github.com/friendlymedia/jellylooter)
+
+---
+
+## ⚠️ Legal Disclaimer
+
+**JellyLooter is designed for legitimate personal use only.**
+
+This software is intended to help users sync and backup media they have legal access to, such as:
+- Content you own or have purchased
+- Media shared by friends/family with their permission
+- Content from servers you are authorized to access
+
+**We do not support, condone, or encourage:**
+- Piracy or illegal downloading of copyrighted content
+- Circumventing DRM or copy protection
+- Distributing copyrighted material without authorization
+- Any use that violates copyright laws in your jurisdiction
+
+**You are solely responsible** for ensuring your use of this software complies with all applicable laws and the terms of service of any media servers you access. The developers assume no liability for misuse of this software.
+
+By using JellyLooter, you agree to use it only for lawful purposes.
+
+---
+
+## License
+
+MIT License - Free to use, modify, and distribute.
+
+Pro features require a valid license key.
