@@ -4,7 +4,7 @@
 
 Built by Friendly Media — because your friends' Jellyfin libraries aren't going to backup themselves.
 
-![JellyLooter Banner](https://raw.githubusercontent.com/friendlymedia/jellylooter/main/screenshots/banner.png)
+![JellyLooter Banner](https://github.com/jlightner86/jellylooter/blob/v3.0.0/icon.png)
 
 ---
 
