@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<Container version="2">
-    <Name>JellyLooter</Name>
+<Container version="3.1">
+    <n>JellyLooter</n>
     <Repository>ghcr.io/jlightner86/jellylooter:latest</Repository>
     <Registry>https://github.com/jlightner86/jellylooter</Registry>
     <Network>bridge</Network>
@@ -9,17 +9,14 @@
     <Support>https://github.com/jlightner86/jellylooter/issues</Support>
     <Project>https://github.com/jlightner86/jellylooter</Project>
     <Overview>JellyLooter v3.2.0 - Sync media from remote Jellyfin/Emby servers to local storage.
-
-         NEW in v3.2.0:
+        NEW in v3.2.0:
         - External API access (NZB360, Organizr, Home Assistant compatible)
         - 6 Dashboard layouts (Classic, Compact, Cards, List, Minimal, Large)
         - Redesigned tabbed Settings UI
         - Per-server workers (Pro) - download from multiple servers simultaneously
         - Resource limits (Pro) - CPU threads, process priority, I/O priority
         - Enhanced download statistics with per-server breakdown
-      
         FREE Features:
-      
         - Browse and download from 2 remote servers
         - Library search - find movies/shows by name
         - Duplicate detection with local library scanning
@@ -32,9 +29,7 @@
         - Download history, search/filter, keyboard shortcuts
         - Auto-retry failed downloads
         - Multi-language support (English, Spanish, German)
-      
         PRO Features ($10 lifetime):
-      
         - Unlimited servers and sync mappings
         - Per-server workers - each server gets dedicated download pool
         - Resource limits - control CPU, I/O, memory for NAS/low-power devices
@@ -48,9 +43,7 @@
         - Custom themes (Jellyfin, Plex, Emby, Christmas, Custom)
         - Multiple local servers for duplicate detection
         - Analytics dashboard
-
         Get Pro: https://lightwave43.gumroad.com/l/rmtmrr
-
         Confirmed working on Unraid 7.0+ / 7.2.2</Overview>
     <Category>MediaApp:Other MediaServer:Other Downloaders:</Category>
     <WebUI>http://[IP]:[PORT:5000]</WebUI>
@@ -61,6 +54,6 @@
     <Config Name="Web UI Port" Target="5000" Default="5000" Mode="tcp" Description="Port for the web interface" Type="Port" Display="always" Required="true" Mask="false">5000</Config>
     <Config Name="Config Path" Target="/config" Default="/mnt/user/appdata/jellylooter" Mode="rw" Description="Path to store configuration files" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/jellylooter</Config>
     <Config Name="Storage Path" Target="/storage" Default="" Mode="rw" Description="Path to your media storage (where downloads will be saved)" Type="Path" Display="always" Required="true" Mask="false"/>
-    <Config Name="Cache Path (Pro)" Target="/cache" Default="" Mode="rw" Description="(Pro) Path to cache drive for faster transcoding - download to cache, transcode, then move to array" Type="Path" Display="advanced" Required="true" Mask="false"/>
+    <Config Name="Cache Path (Pro)" Target="/cache" Default="" Mode="rw" Description="(Pro) Optional path to cache drive for faster transcoding - download to cache, transcode, then move to array" Type="Path" Display="advanced" Required="false" Mask="false"/>
     <Config Name="Nvidia Visible Devices" Target="NVIDIA_VISIBLE_DEVICES" Default="" Mode="" Description="(Pro GPU) Set to 'all' or GPU UUID for NVIDIA transcoding. Also add --runtime=nvidia to Extra Parameters." Type="Variable" Display="advanced" Required="false" Mask="false"/>
 </Container>

@@ -1,4 +1,4 @@
-# JellyLooter v3.1.0
+# JellyLooter v3.2.0
 
 **Sync media from remote Jellyfin/Emby servers to your local storage.**
 
@@ -17,6 +17,84 @@ Built by Friendly Media — because your friends' Jellyfin libraries aren't goin
 | Rating Overlays | Quality Badges | Pro Features |
 |-----------------|----------------|--------------|
 | ![Ratings](https://raw.githubusercontent.com/jlightner86/jellylooter/main/screenshots/ratings.png) | ![Quality](https://raw.githubusercontent.com/jlightner86/jellylooter/main/screenshots/quality.png) | ![Pro](https://raw.githubusercontent.com/jlightner86/jellylooter/main/screenshots/pro.png) |
+
+---
+
+## What's New in v3.2.0
+
+### 🔌 API Integration (NZB360, Organizr, etc.)
+- **External API access** - Control JellyLooter from external apps
+- **API key authentication** - Secure access with generated API keys
+- **Full queue control** - Add, remove, pause, resume downloads via API
+- **NZB360 compatible** - Use Custom Downloader integration
+- **Organizr widgets** - Add status widget to your dashboard
+- **Home Assistant** - Poll status for sensors and automations
+- **API documentation** - Built-in docs at `/api/v1/docs`
+
+### 📊 Dashboard Layouts
+Choose from 6 layout options to customize your browsing experience:
+- **Classic** - Large posters with full details (default)
+- **Compact** - Smaller posters, fits 2x more on screen
+- **Cards** - Horizontal cards with poster and info
+- **List** - Vertical list with thumbnails for quick browsing
+- **Minimal** - Posters only, hover for details
+- **Large Posters** - Oversized artwork focus
+
+### ⚙️ Tabbed Settings UI
+Redesigned settings page with organized tabs:
+- **General** - Appearance, language, layout, display options, timezone
+- **Servers** - Remote servers, local server, API integration
+- **Downloads** - Speed limits, retry settings, folder naming, metadata APIs
+- **Security** - Authentication, reverse proxy settings
+- **Pro** - Notifications, transcoding, resource limits, scheduling, *arr integration, themes
+
+### ⚡ Resource Limits (Pro)
+Control system resource usage to prevent overloading NAS/low-power devices:
+- **CPU Threads** - Limit FFmpeg to 1-16 threads (or auto)
+- **Process Priority** - Low/Normal/High (nice levels)
+- **I/O Priority** - Idle/Low/Normal (ionice for disk)
+- **Memory Buffer** - 8-256 MB download buffer size
+
+**Presets:**
+| Device Type | CPU | I/O | Buffer |
+|-------------|-----|-----|--------|
+| NAS/Low-power | Low | Idle | 16 MB |
+| Shared systems | Normal | Low | 32 MB |
+| Dedicated | High | Normal | 256 MB |
+
+### 📡 Per-Server Workers (Pro)
+Download from multiple Jellyfin servers simultaneously:
+- Each server gets its own dedicated worker pool
+- Downloads from Server A don't block Server B
+- Configure 1-10 workers per server (matches concurrent download limit)
+- Total concurrent downloads = servers × workers per server
+- Example: 3 servers × 4 workers = 12 simultaneous downloads
+
+### 📈 Enhanced Download Statistics
+- **Persistent tracking** - Stats survive container restarts
+- **Per-server breakdown** - See downloads by server
+- **Session vs total** - Track current session and all-time totals
+- **Transcode savings widget** - Shows space saved in main UI when transcoding enabled
+
+### 🐛 Bug Fixes
+- **Fixed basic logs** - Activity logs now properly show download events (timestamp-aware patterns)
+- **Fixed download stats** - Statistics now persist and track accurately across restarts
+- **Fixed transcode stats display** - Properly shows space saved percentage
+
+### API Endpoints
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v1/status` | Queue status, speeds, disk space |
+| `GET /api/v1/queue` | Current download queue |
+| `POST /api/v1/queue/add` | Add item to download queue |
+| `DELETE /api/v1/queue/{id}` | Cancel/remove download |
+| `POST /api/v1/queue/pause` | Pause all downloads |
+| `POST /api/v1/queue/resume` | Resume downloads |
+| `GET /api/v1/history` | Download history |
+| `GET /api/v1/servers` | List configured servers |
+| `GET /api/v1/servers/{id}/browse` | Browse server library |
+| `GET /api/v1/servers/{id}/search` | Search server |
+| `GET /api/v1/stats` | Download/transcode statistics |
 
 ---
 
@@ -466,5 +544,6 @@ Pro features require a valid license key.
 A huge thank you to our beta testers and contributors:
 
 - **[vwidmer](https://github.com/vwidmer)** - Beta testing, bug reports, and feature suggestions for transcoding, *arr integration, and download improvements
+- **[nwithan8](https://github.com/nwithan8)** - Fixed jellylooter.xml for Unraid Community Apps compatibility
 
 Want to contribute? [Open an issue](https://github.com/jlightner86/jellylooter/issues) or submit a pull request!

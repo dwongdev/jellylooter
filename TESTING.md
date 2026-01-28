@@ -1,4 +1,69 @@
-# JellyLooter v3.0.0 - Pre-Release Testing Checklist
+# JellyLooter v3.1.0 - Pre-Release Testing Checklist
+
+## 🆕 New in v3.1.0
+
+### Folder Naming Formats
+- [ ] Settings dropdown shows 6 format options
+- [ ] Live preview updates when format selected
+- [ ] Movie preview shows: `Movie Name (2024) {imdb-tt1234567}`
+- [ ] TV preview shows: `Show Name {imdb-tt1234567} {tvdb-12345}`
+- [ ] **Standard format**: No IDs appended
+- [ ] **IDs (Space)**: `tt1234567 12345`
+- [ ] **IDs (Braces)**: `{imdb-tt1234567} {tvdb-12345}`
+- [ ] **IDs (Brackets)**: `[imdb-tt1234567] [tvdb-12345]`
+- [ ] **TMDB Only**: `{tmdb-12345}`
+- [ ] **IMDB Only**: `tt1234567`
+- [ ] Episodes use **series IDs**, not episode IDs
+- [ ] All episodes of same series go in ONE folder
+
+### External Metadata APIs
+- [ ] TMDB API key field saves (encrypted)
+- [ ] TVDB API key field saves (encrypted)
+- [ ] OMDb API key field saves (encrypted)
+- [ ] "Get free key" links work
+- [ ] Lookup timing toggle works ("On Browse" vs "On Download")
+- [ ] API fallback chain works: TMDB → TVDB → OMDb
+- [ ] Log shows: `✅ TMDB lookup success: Show Name -> IMDB:tt1234567`
+- [ ] Log shows: `⚠️ TMDB: No results for 'Unknown Show'`
+- [ ] Log shows: `❌ No metadata API keys configured`
+- [ ] Pro: Metadata caching works (cache hit message in logs)
+- [ ] Free: No caching (always hits API)
+
+### Activity Log Views
+- [ ] Dropdown shows "Basic" and "Advanced" options
+- [ ] Basic view shows only download activity
+- [ ] Advanced view shows all logs (metadata, cache, debug)
+- [ ] History button (📜) toggles to history view
+- [ ] Rebuild Cache button (🔄) works
+- [ ] Buttons are icon-only (no text overflow)
+
+### Transcoding (Pro)
+- [ ] Settings appear in Pro Features section
+- [ ] "Enable transcoding" toggle saves
+- [ ] Encoder dropdown works (Software, NVENC, QSV, VAAPI)
+- [ ] Preset dropdown works (Original, H.264, H.265, Mobile, 4K)
+- [ ] **Test mode**: Click "O" in "COMING SOON" 5x reveals panel
+- [ ] Test mode toggle enables transcoding for testing
+- [ ] Log shows: `🎬 [TRANSCODE PRO] Processing: file.mkv`
+- [ ] Log shows: `✅ [TRANSCODE] Success: file_transcoded.mkv`
+- [ ] Original file replaced with transcoded file
+- [ ] Hardware encoder fallback to software works
+
+### Download Statistics
+- [ ] Total Downloaded shows correct value
+- [ ] Today's count shows correct value
+- [ ] Stats persist across container restarts
+- [ ] Stats DON'T reset to 0 during active downloads
+- [ ] Speed updates in real-time
+
+### Multi-Local Server (Cache)
+- [ ] Rebuild Cache scans all configured local servers
+- [ ] Log shows: `Scanning ServerName...`
+- [ ] Log shows: `Scanned X items from ServerName`
+- [ ] Cache properly clears old data before rebuild
+- [ ] Deleted files no longer show as "owned"
+
+---
 
 ## 🔧 Environment Setup
 
@@ -116,13 +181,25 @@
 
 ## 🏠 Local Server Management
 
+### Single Local Server
 - [ ] "Configure Local Server" button works
 - [ ] Can save local server URL and API key
+- [ ] Can use username/password auth instead
 - [ ] Test connection works
 - [ ] Cache rebuild starts
 - [ ] Scan progress shown
 - [ ] Cache count updates
-- [ ] Duplicate detection works (items grayed out)
+- [ ] Duplicate detection works (items grayed out with ✓)
+
+### Multi-Local Server (Pro)
+- [ ] "Add Local Server" shows for Pro users
+- [ ] Can add multiple local servers
+- [ ] Each server appears in list
+- [ ] Can remove individual servers
+- [ ] Rebuild Cache scans ALL servers
+- [ ] Log shows each server being scanned
+- [ ] Combined cache includes all servers' items
+- [ ] Free tier: limited to 1 local server
 
 ---
 
@@ -258,13 +335,18 @@
 - [ ] Feature disabled for free tier
 
 ### Transcoding (Pro)
-- [ ] Transcode toggle saves
-- [ ] Preset selection works
+- [ ] Transcode toggle saves in settings
+- [ ] Preset selection works (Original, H.264, H.265, Mobile, 4K)
+- [ ] Encoder selection works (Software, NVENC, QSV, VAAPI)
+- [ ] **With Pro + enabled**: Transcode runs automatically
+- [ ] **Test mode**: Transcode runs when test mode enabled
+- [ ] Log shows transcode check: `test_mode=False, enabled=True, feature=True, preset=h265`
+- [ ] Log shows processing: `🎬 [TRANSCODE PRO] Processing: filename.mkv`
 - [ ] H.265 transcode runs after download
-- [ ] Mobile preset runs (720p output)
-- [ ] Custom FFmpeg args work
+- [ ] Mobile preset outputs 720p
 - [ ] Original file removed after transcode
-- [ ] Savings percentage logged
+- [ ] Savings percentage logged: `saved 45.2%`
+- [ ] Hardware encoder errors fall back to software
 - [ ] Feature disabled for free tier
 
 ### Scheduling (Pro)
@@ -341,10 +423,16 @@
 
 ## 📝 Logging
 
+### Activity Log
 - [ ] Activity log updates in real-time
 - [ ] Log lines color-coded (success=green, error=red)
-- [ ] Rebuild Cache button works
-- [ ] History button toggles view
+- [ ] **Basic view**: Only shows download activity (⬇️ ✓ ✗)
+- [ ] **Advanced view**: Shows all logs (metadata, cache, transcode, debug)
+- [ ] View selector dropdown works
+- [ ] View preference persists during session
+- [ ] History button (📜) toggles to download history
+- [ ] Rebuild Cache button (🔄) works
+- [ ] Buttons fit in panel header (no overflow)
 
 ---
 

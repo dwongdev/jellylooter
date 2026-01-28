@@ -85,7 +85,7 @@ ENCRYPTION_KEY_FILE = '/config/.encryption_key'
 PARTIAL_DOWNLOADS_FILE = '/config/partial_downloads.json'
 METADATA_CACHE_FILE = '/config/metadata_cache.json'  # Pro feature: cached metadata lookups
 
-VERSION = "3.1.0"
+VERSION = "3.2.0"
 
 # --- Encryption for API Keys at Rest ---
 
@@ -213,11 +213,16 @@ if LIMITER_AVAILABLE:
     limiter = Limiter(
         app=app,
         key_func=get_remote_address,
-        default_limits=[],  # No default limits - only apply to login
+        default_limits=[],  # No default limits - only apply to specific endpoints
         storage_uri="memory://"
     )
 else:
     limiter = None
+
+# API rate limiting - track failed attempts per IP
+api_failed_attempts = {}  # {ip: {'count': int, 'last_attempt': timestamp}}
+API_LOCKOUT_THRESHOLD = 10  # Lock out after 10 failed attempts
+API_LOCKOUT_DURATION = 300  # 5 minutes lockout
 
 # CSRF Protection (if available)
 if CSRF_AVAILABLE:
@@ -746,6 +751,23 @@ transcode_stats = {
 }
 transcode_stats_lock = threading.Lock()
 
+# Download statistics
+DOWNLOAD_STATS_FILE = '/config/download_stats.json'
+download_stats = {
+    'total_files': 0,
+    'total_bytes': 0,
+    'session_files': 0,
+    'session_bytes': 0,
+    'by_server': {},  # server_id -> {files, bytes}
+    'last_updated': None
+}
+download_stats_lock = threading.Lock()
+
+# Per-server queue system (Pro feature)
+server_queues = {}  # server_id -> queue.Queue()
+server_workers = {}  # server_id -> worker thread
+server_worker_lock = threading.Lock()
+
 def save_transcode_stats():
     """Save transcode statistics to file"""
     try:
@@ -782,6 +804,85 @@ def update_transcode_stats(original_size, new_size, kept_original=False):
             transcode_stats['total_space_saved_bytes'] += (original_size - new_size)
     # Save asynchronously
     threading.Thread(target=save_transcode_stats, daemon=True).start()
+
+
+def save_download_stats():
+    """Save download statistics to file"""
+    try:
+        with download_stats_lock:
+            stats_copy = dict(download_stats)
+            stats_copy['last_updated'] = datetime.datetime.now().isoformat()
+        with open(DOWNLOAD_STATS_FILE, 'w') as f:
+            json.dump(stats_copy, f, indent=2)
+    except Exception as e:
+        log(f"Failed to save download stats: {e}")
+
+
+def load_download_stats():
+    """Load download statistics from file"""
+    global download_stats
+    try:
+        if os.path.exists(DOWNLOAD_STATS_FILE):
+            with open(DOWNLOAD_STATS_FILE, 'r') as f:
+                loaded = json.load(f)
+            with download_stats_lock:
+                download_stats.update(loaded)
+                # Reset session counters on load
+                download_stats['session_files'] = 0
+                download_stats['session_bytes'] = 0
+            log(f"📊 Loaded download stats: {download_stats['total_files']} files, {format_bytes(download_stats['total_bytes'])}")
+    except Exception as e:
+        log(f"Failed to load download stats: {e}")
+
+
+def update_download_stats(file_size, server_id=None, server_name=None):
+    """Update download statistics when a download completes"""
+    global download_stats
+    with download_stats_lock:
+        download_stats['total_files'] += 1
+        download_stats['total_bytes'] += file_size
+        download_stats['session_files'] += 1
+        download_stats['session_bytes'] += file_size
+        
+        # Track per-server stats
+        if server_id:
+            if server_id not in download_stats['by_server']:
+                download_stats['by_server'][server_id] = {
+                    'name': server_name or server_id,
+                    'files': 0,
+                    'bytes': 0
+                }
+            download_stats['by_server'][server_id]['files'] += 1
+            download_stats['by_server'][server_id]['bytes'] += file_size
+    
+    # Save asynchronously
+    threading.Thread(target=save_download_stats, daemon=True).start()
+
+
+def get_download_stats():
+    """Get current download statistics"""
+    with download_stats_lock:
+        return dict(download_stats)
+
+
+def reset_download_stats(session_only=False):
+    """Reset download statistics"""
+    global download_stats
+    with download_stats_lock:
+        if session_only:
+            download_stats['session_files'] = 0
+            download_stats['session_bytes'] = 0
+        else:
+            download_stats = {
+                'total_files': 0,
+                'total_bytes': 0,
+                'session_files': 0,
+                'session_bytes': 0,
+                'by_server': {},
+                'last_updated': None
+            }
+    threading.Thread(target=save_download_stats, daemon=True).start()
+
 
 def save_download_history():
     """Save download history to file"""
@@ -1720,6 +1821,124 @@ def login_required(f):
     return decorated_function
 
 
+def verify_api_key():
+    """Check if request has valid API key with brute force protection"""
+    global api_failed_attempts
+    
+    # Get client IP
+    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if client_ip and ',' in client_ip:
+        client_ip = client_ip.split(',')[0].strip()
+    
+    # Check for lockout
+    if client_ip in api_failed_attempts:
+        attempt_info = api_failed_attempts[client_ip]
+        if attempt_info['count'] >= API_LOCKOUT_THRESHOLD:
+            time_since_last = time.time() - attempt_info['last_attempt']
+            if time_since_last < API_LOCKOUT_DURATION:
+                remaining = int(API_LOCKOUT_DURATION - time_since_last)
+                return False, f"Too many failed attempts. Try again in {remaining} seconds"
+            else:
+                # Reset after lockout expires
+                del api_failed_attempts[client_ip]
+    
+    cfg = load_config()
+    
+    # Check if API is enabled
+    if not cfg.get('api_enabled', False):
+        return False, "API access is disabled"
+    
+    stored_key = cfg.get('api_key', '')
+    if not stored_key:
+        return False, "No API key configured"
+    
+    # Check header first (preferred - doesn't appear in logs)
+    provided_key = request.headers.get('X-Api-Key', '')
+    
+    # Fall back to query param (less secure - may appear in logs)
+    if not provided_key:
+        provided_key = request.args.get('apikey', '')
+    
+    if not provided_key:
+        return False, "No API key provided"
+    
+    # Constant-time comparison to prevent timing attacks
+    if hmac.compare_digest(stored_key, provided_key):
+        # Reset failed attempts on success
+        if client_ip in api_failed_attempts:
+            del api_failed_attempts[client_ip]
+        return True, None
+    
+    # Track failed attempt
+    if client_ip not in api_failed_attempts:
+        api_failed_attempts[client_ip] = {'count': 0, 'last_attempt': 0}
+    api_failed_attempts[client_ip]['count'] += 1
+    api_failed_attempts[client_ip]['last_attempt'] = time.time()
+    
+    # Log suspicious activity (without revealing the key)
+    if api_failed_attempts[client_ip]['count'] >= 3:
+        log(f"⚠️ [API] Multiple failed auth attempts from {client_ip} ({api_failed_attempts[client_ip]['count']} attempts)")
+    
+    return False, "Invalid API key"
+
+
+def api_key_required(f):
+    """Decorator to require API key authentication for external API endpoints"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        valid, error = verify_api_key()
+        if not valid:
+            # Determine if this is a rate limit issue
+            status_code = 429 if "Too many failed attempts" in error else 401
+            response = jsonify({
+                "success": False,
+                "error": error,
+                "code": "RATE_LIMITED" if status_code == 429 else "UNAUTHORIZED"
+            })
+            return response, status_code
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def api_key_or_login_required(f):
+    """Decorator that accepts either API key or session login"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # First try API key
+        valid, _ = verify_api_key()
+        if valid:
+            return f(*args, **kwargs)
+        
+        # Fall back to session auth
+        if not is_auth_enabled():
+            return f(*args, **kwargs)
+        
+        if 'user' not in session:
+            remember_token = request.cookies.get('remember_token')
+            if remember_token:
+                auth = load_auth()
+                if auth and 'tokens' in auth:
+                    for username, token in auth['tokens'].items():
+                        if token == remember_token:
+                            session['user'] = username
+                            break
+            
+            if 'user' not in session:
+                return jsonify({
+                    "success": False,
+                    "error": "Authentication required",
+                    "code": "UNAUTHORIZED"
+                }), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def generate_api_key():
+    """Generate a secure random API key"""
+    # Format: jl_xxxxxxxxxxxxxxxxxxxxxxxxxxxx (32 chars after prefix)
+    return 'jl_' + secrets.token_hex(16)
+
+
 # --- Utility Functions ---
 
 def get_local_time():
@@ -2080,6 +2299,21 @@ def get_default_config():
         "force_https": False,
         "trust_proxy_headers": False,
         "trusted_proxy_ips": "",
+        # API Key for external integrations (NZB360, etc.)
+        "api_key": "",  # Generated API key for external access
+        "api_enabled": False,  # Enable/disable API access
+        # Dashboard layout
+        "dashboard_layout": "classic",  # classic, compact, cards, list, minimal
+        # Resource Limits
+        "resource_limits_enabled": False,  # Enable resource limiting
+        "cpu_limit_threads": 0,  # 0 = auto, 1-32 = specific thread count for transcoding
+        "cpu_priority": "normal",  # low, normal, high - process priority (nice)
+        "io_priority": "normal",  # idle, low, normal - I/O priority (ionice)
+        "memory_buffer_mb": 64,  # Download buffer size in MB (8-256)
+        "transcode_memory_limit_mb": 0,  # 0 = unlimited, or specific limit for ffmpeg
+        # Per-server workers (Pro feature)
+        "per_server_workers": False,  # Enable dedicated worker per server
+        "per_server_worker_count": 2,  # Workers per server (1-10)
         # Skip list for auto-sync
         "sync_skip_list": [],  # List of {id, name, type, server_id} items to skip during sync
         # Scheduling (Pro)
@@ -2157,6 +2391,10 @@ def _decrypt_config_keys(config):
     for meta_key in ['tmdb_api_key', 'tvdb_api_key', 'omdb_api_key']:
         if result.get(meta_key) and is_encrypted(result[meta_key]):
             result[meta_key] = decrypt_sensitive(result[meta_key])
+    
+    # Decrypt external API key
+    if result.get('api_key') and is_encrypted(result['api_key']):
+        result['api_key'] = decrypt_sensitive(result['api_key'])
     
     return result
 
@@ -2248,6 +2486,10 @@ def save_config(data):
     for meta_key in ['tmdb_api_key', 'tvdb_api_key', 'omdb_api_key']:
         if data_to_save.get(meta_key) and not is_encrypted(data_to_save[meta_key]):
             data_to_save[meta_key] = encrypt_sensitive(data_to_save[meta_key])
+    
+    # Encrypt external API key
+    if data_to_save.get('api_key') and not is_encrypted(data_to_save['api_key']):
+        data_to_save['api_key'] = encrypt_sensitive(data_to_save['api_key'])
     
     os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
     with open(CONFIG_FILE, 'w') as f:
@@ -2662,6 +2904,156 @@ def adjust_transcode_workers(new_count, force=False):
             log(f"Started transcode worker (total: {active_transcode_workers})")
 
 
+# --- Per-Server Queue System (Pro Feature) ---
+
+def get_server_queue(server_id):
+    """Get or create a queue for a specific server"""
+    global server_queues
+    with server_worker_lock:
+        if server_id not in server_queues:
+            server_queues[server_id] = queue.Queue()
+        return server_queues[server_id]
+
+
+def ensure_server_workers(server_id, server_name=None):
+    """Ensure workers exist for a specific server (Pro feature)"""
+    global server_workers
+    
+    if not is_feature_available('arr_integration'):  # Use arr_integration as proxy for Pro
+        return False
+    
+    cfg = load_config()
+    if not cfg.get('per_server_workers', False):
+        return False
+    
+    with server_worker_lock:
+        if server_id not in server_workers or not server_workers[server_id].get('active', False):
+            workers_per_server = cfg.get('per_server_worker_count', 2)
+            workers_per_server = max(1, min(10, workers_per_server))  # 1-10 workers per server
+            
+            server_workers[server_id] = {
+                'active': True,
+                'count': workers_per_server,
+                'name': server_name or server_id
+            }
+            
+            # Start worker threads for this server
+            for i in range(workers_per_server):
+                t = threading.Thread(
+                    target=server_worker,
+                    args=(server_id, server_name or server_id),
+                    daemon=True,
+                    name=f"ServerWorker-{server_id[:8]}-{i+1}"
+                )
+                t.start()
+            
+            log(f"📡 Started {workers_per_server} worker(s) for server: {server_name or server_id}")
+            return True
+    return True
+
+
+def server_worker(server_id, server_name):
+    """Worker thread for a specific server's queue"""
+    global pending_display, stop_after_current
+    
+    server_queue = get_server_queue(server_id)
+    
+    while True:
+        # Check if server workers are still enabled
+        with server_worker_lock:
+            if server_id not in server_workers or not server_workers[server_id].get('active', False):
+                log(f"📡 Server worker stopping for: {server_name}")
+                return
+        
+        # Check global stop after current
+        if stop_after_current:
+            with download_lock:
+                if len(active_downloads) == 0:
+                    time.sleep(1)
+                    continue
+        
+        try:
+            task = server_queue.get(timeout=5)
+        except queue.Empty:
+            continue
+        
+        if task is None:
+            server_queue.task_done()
+            break
+        
+        if stop_after_current:
+            server_queue.put(task)
+            server_queue.task_done()
+            time.sleep(1)
+            continue
+        
+        tid = task['task_id']
+        log(f"📡 Server worker ({server_name}) picked up task: {tid[:8]}...")
+        
+        with download_lock:
+            pending_display = [x for x in pending_display if x['id'] != tid]
+        
+        if tid in cancelled_tasks:
+            cancelled_tasks.discard(tid)
+            server_queue.task_done()
+            continue
+        
+        try:
+            download_file(task)
+        except Exception as e:
+            log(f"Server Worker Error ({server_name}): {e}")
+        
+        server_queue.task_done()
+
+
+def queue_to_server_or_global(task, server_id, server_name=None):
+    """Route task to server-specific queue or global queue"""
+    cfg = load_config()
+    
+    # Check if per-server workers are enabled (Pro feature)
+    if cfg.get('per_server_workers', False) and is_feature_available('arr_integration'):
+        # Ensure workers exist for this server
+        ensure_server_workers(server_id, server_name)
+        
+        # Queue to server-specific queue
+        server_queue = get_server_queue(server_id)
+        server_queue.put(task)
+        log(f"📡 Queued to server worker: {server_name or server_id}")
+    else:
+        # Use global queue
+        task_queue.put(task)
+        log(f"📥 Queued to global worker pool: {task.get('filepath', 'unknown')[-50:]}")
+
+
+def get_per_server_status():
+    """Get status of per-server workers"""
+    status = {}
+    with server_worker_lock:
+        for server_id, info in server_workers.items():
+            server_queue = server_queues.get(server_id)
+            status[server_id] = {
+                'name': info.get('name', server_id),
+                'active': info.get('active', False),
+                'workers': info.get('count', 0),
+                'pending': server_queue.qsize() if server_queue else 0
+            }
+    return status
+
+
+def stop_server_workers():
+    """Stop all per-server workers"""
+    global server_workers, server_queues
+    with server_worker_lock:
+        for server_id in list(server_workers.keys()):
+            server_workers[server_id]['active'] = False
+            # Send None to stop workers
+            if server_id in server_queues:
+                for _ in range(server_workers[server_id].get('count', 1)):
+                    server_queues[server_id].put(None)
+        server_workers.clear()
+        log("📡 All per-server workers stopped")
+
+
 def worker():
     """Download worker thread"""
     global active_workers, pending_display, stop_after_current
@@ -2702,6 +3094,7 @@ def worker():
             continue
         
         tid = task['task_id']
+        log(f"📥 Worker picked up task: {tid[:8]}...")
         
         with download_lock:
             pending_display = [x for x in pending_display if x['id'] != tid]
@@ -2802,14 +3195,20 @@ def transcode_worker():
                     final_filename = filename
                 
                 # Add to download history
+                final_file_size = os.path.getsize(final_path) if os.path.exists(final_path) else total_size
                 with download_lock:
                     download_history.appendleft({
                         'filename': final_filename,
-                        'size': os.path.getsize(final_path) if os.path.exists(final_path) else total_size,
+                        'size': final_file_size,
                         'timestamp': datetime.datetime.now().isoformat(),
                         'path': final_path,
-                        'transcoded': transcoded_path != filepath
+                        'transcoded': transcoded_path != filepath,
+                        'server_id': task.get('server_id', 'unknown'),
+                        'server_name': task.get('server_name', 'Unknown Server')
                     })
+                
+                # Update download statistics (use final size after transcoding)
+                update_download_stats(final_file_size, task.get('server_id'), task.get('server_name'))
                 
                 # Save history periodically
                 if len(download_history) % 5 == 0:
@@ -2954,7 +3353,14 @@ def download_file(task):
     
     cfg = load_config()
     speed_limit = cfg.get('speed_limit_kbs', 0)
-    chunk_size = cfg.get('chunk_size_kb', 64) * 1024
+    
+    # Use resource-limited chunk size if enabled, otherwise use config setting
+    resource_limits = get_resource_limits()
+    if resource_limits:
+        chunk_size = get_download_chunk_size()
+    else:
+        chunk_size = cfg.get('chunk_size_kb', 64) * 1024
+    
     timeout = cfg.get('connection_timeout', 30)
     
     # Retry settings
@@ -3248,7 +3654,9 @@ def download_file(task):
                     'total_size': total_size,
                     'item_type': task.get('item_type'),
                     'provider_ids': task.get('provider_ids', {}),
-                    'series_provider_ids': task.get('series_provider_ids', {})
+                    'series_provider_ids': task.get('series_provider_ids', {}),
+                    'server_id': task.get('server', {}).get('id', 'unknown'),
+                    'server_name': task.get('server', {}).get('name', 'Unknown Server')
                 }
                 transcode_queue.put(transcode_task)
                 
@@ -3273,13 +3681,20 @@ def download_file(task):
                 log(f"ℹ️ [TRANSCODE] Skipping - Pro feature not available")
         
         # Add to download history (only if not transcoding)
+        final_size = os.path.getsize(filepath) if os.path.exists(filepath) else total_size
         with download_lock:
             download_history.appendleft({
                 'filename': filename,
-                'size': os.path.getsize(filepath) if os.path.exists(filepath) else total_size,
+                'size': final_size,
                 'timestamp': datetime.datetime.now().isoformat(),
-                'path': filepath
+                'path': filepath,
+                'server_id': task.get('server', {}).get('id', 'unknown'),
+                'server_name': task.get('server', {}).get('name', 'Unknown Server')
             })
+        
+        # Update download statistics
+        server_info = task.get('server', {})
+        update_download_stats(final_size, server_info.get('id'), server_info.get('name'))
         
         # Save history periodically (every 5 downloads)
         if len(download_history) % 5 == 0:
@@ -3404,6 +3819,83 @@ def get_video_duration(filepath):
     except:
         pass
     return 0
+
+
+def get_resource_limits():
+    """Get resource limit settings from config"""
+    cfg = load_config()
+    if not cfg.get('resource_limits_enabled', False):
+        return None
+    
+    return {
+        'cpu_threads': cfg.get('cpu_limit_threads', 0),  # 0 = auto
+        'cpu_priority': cfg.get('cpu_priority', 'normal'),  # low, normal, high
+        'io_priority': cfg.get('io_priority', 'normal'),  # idle, low, normal
+        'memory_buffer_mb': cfg.get('memory_buffer_mb', 64),  # 8-256 MB
+        'transcode_memory_mb': cfg.get('transcode_memory_limit_mb', 0),  # 0 = unlimited
+    }
+
+
+def build_process_prefix():
+    """Build nice/ionice prefix for subprocess commands"""
+    limits = get_resource_limits()
+    if not limits:
+        return []
+    
+    prefix = []
+    
+    # CPU priority using nice (-20 to 19, higher = lower priority)
+    nice_values = {
+        'low': 15,      # Low priority
+        'normal': 0,    # Normal priority  
+        'high': -10     # Higher priority (may need root)
+    }
+    nice_val = nice_values.get(limits['cpu_priority'], 0)
+    if nice_val != 0:
+        prefix.extend(['nice', '-n', str(nice_val)])
+    
+    # I/O priority using ionice (class 3=idle, 2=best-effort, 1=realtime)
+    # For best-effort, level 0-7 (lower = higher priority)
+    io_settings = {
+        'idle': ['-c', '3'],           # Idle - only when system idle
+        'low': ['-c', '2', '-n', '7'], # Best-effort, lowest priority
+        'normal': []                    # Don't set - use system default
+    }
+    io_args = io_settings.get(limits['io_priority'], [])
+    if io_args:
+        # ionice needs to wrap the command
+        if prefix:
+            # nice already set, ionice wraps nice
+            prefix = ['ionice'] + io_args + prefix
+        else:
+            prefix = ['ionice'] + io_args
+    
+    return prefix
+
+
+def get_ffmpeg_thread_args():
+    """Get FFmpeg thread limiting arguments"""
+    limits = get_resource_limits()
+    if not limits or limits['cpu_threads'] == 0:
+        return []
+    
+    threads = max(1, min(32, limits['cpu_threads']))
+    return ['-threads', str(threads)]
+
+
+def get_download_chunk_size():
+    """Get download chunk size based on memory buffer setting"""
+    limits = get_resource_limits()
+    if not limits:
+        return 64 * 1024  # Default 64KB chunks
+    
+    # Memory buffer in MB, convert to reasonable chunk size
+    # Larger buffer = larger chunks = faster but more RAM
+    buffer_mb = max(8, min(256, limits['memory_buffer_mb']))
+    
+    # Use buffer_mb as the read buffer, chunk size is 1/4 of that
+    chunk_kb = buffer_mb * 256  # So 64MB buffer = 16KB chunks, scaled up
+    return max(8 * 1024, min(1024 * 1024, chunk_kb * 1024))  # 8KB to 1MB
 
 
 def transcode_file(filepath, force_software=False, task_id=None):
@@ -3546,7 +4038,15 @@ def transcode_file(filepath, force_software=False, task_id=None):
                 return filepath
         
         # Base ffmpeg args - use warning level for more visibility
-        base_args = ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-stats', '-i', filepath]
+        base_args = ['ffmpeg', '-hide_banner', '-loglevel', 'warning', '-stats']
+        
+        # Add thread limit if resource limits are enabled
+        thread_args = get_ffmpeg_thread_args()
+        if thread_args:
+            base_args.extend(thread_args)
+            log(f"🔧 [TRANSCODE] Thread limit: {thread_args[1]} threads")
+        
+        base_args.extend(['-i', filepath])
         
         # Use the target_encoder we already validated
         video_codec = target_encoder
@@ -3658,6 +4158,12 @@ def transcode_file(filepath, force_software=False, task_id=None):
             # Add -progress pipe:1 for machine-readable progress
             # Add -nostdin to prevent ffmpeg from waiting for input
             cmd_with_progress = cmd[:-2] + ['-nostdin', '-progress', 'pipe:1'] + cmd[-2:]  # Insert before -y output
+            
+            # Apply resource limits (nice/ionice prefix)
+            process_prefix = build_process_prefix()
+            if process_prefix:
+                cmd_with_progress = process_prefix + cmd_with_progress
+                log(f"🔧 [TRANSCODE] Process priority: {' '.join(process_prefix)}")
             
             process = subprocess.Popen(
                 cmd_with_progress,
@@ -4185,6 +4691,672 @@ def health_check():
         }), 503
 
 
+# ============================================================================
+# API v1 - External Integration Endpoints (NZB360, Organizr, etc.)
+# ============================================================================
+
+@app.route('/api/v1/key/generate', methods=['POST'])
+@login_required
+def api_generate_key():
+    """Generate a new API key (requires login)"""
+    cfg = load_config()
+    new_key = generate_api_key()
+    cfg['api_key'] = new_key
+    cfg['api_enabled'] = True
+    save_config(cfg)
+    
+    log(f"🔑 [API] New API key generated")
+    
+    return jsonify({
+        'success': True,
+        'api_key': new_key,
+        'message': 'New API key generated. Save it securely - it cannot be retrieved later.'
+    })
+
+
+@app.route('/api/v1/key/revoke', methods=['POST'])
+@login_required
+def api_revoke_key():
+    """Revoke/disable API key (requires login)"""
+    cfg = load_config()
+    cfg['api_key'] = ''
+    cfg['api_enabled'] = False
+    save_config(cfg)
+    
+    log(f"🔑 [API] API key revoked")
+    
+    return jsonify({
+        'success': True,
+        'message': 'API key revoked. External integrations will no longer work.'
+    })
+
+
+@app.route('/api/v1/key/status', methods=['GET'])
+@login_required
+def api_key_status():
+    """Check API key status (requires login)"""
+    cfg = load_config()
+    has_key = bool(cfg.get('api_key', ''))
+    enabled = cfg.get('api_enabled', False)
+    
+    # SECURITY: Never reveal any part of the API key
+    # Only indicate if one is set
+    return jsonify({
+        'success': True,
+        'api_enabled': enabled,
+        'api_key_set': has_key
+    })
+
+
+@app.route('/api/v1/status', methods=['GET'])
+@api_key_required
+def api_v1_status():
+    """
+    Get current status - queue, speeds, disk space.
+    Compatible with NZB360 and other external apps.
+    """
+    cfg = load_config()
+    download_path = cfg.get('download_path', '/downloads')
+    
+    # Disk stats
+    disk_free = 0
+    disk_total = 0
+    if os.path.exists(download_path):
+        try:
+            stat = shutil.disk_usage(download_path)
+            disk_free = stat.free
+            disk_total = stat.total
+        except:
+            pass
+    
+    # Calculate total speed
+    total_speed = sum(d.get('speed', 0) for d in active_downloads.values())
+    
+    # Queue counts
+    active_count = len(active_downloads)
+    pending_count = task_queue.qsize() + len(pending_display)
+    
+    return jsonify({
+        'success': True,
+        'version': VERSION,
+        'status': 'paused' if is_paused else 'downloading' if active_count > 0 else 'idle',
+        'queue': {
+            'active': active_count,
+            'pending': pending_count,
+            'total': active_count + pending_count
+        },
+        'speed': {
+            'bytes_per_sec': total_speed,
+            'human': format_speed(total_speed)
+        },
+        'disk': {
+            'free_bytes': disk_free,
+            'total_bytes': disk_total,
+            'free_human': format_bytes(disk_free),
+            'total_human': format_bytes(disk_total),
+            'percent_used': round((1 - disk_free / disk_total) * 100, 1) if disk_total > 0 else 0
+        },
+        'workers': {
+            'download': active_workers,
+            'transcode': transcode_workers_active
+        },
+        'paused': is_paused,
+        'license_tier': get_license_tier()
+    })
+
+
+@app.route('/api/v1/queue', methods=['GET'])
+@api_key_required
+def api_v1_queue():
+    """
+    Get current download queue.
+    Returns active downloads and pending items.
+    """
+    # Active downloads with progress
+    active_list = []
+    for tid, info in active_downloads.items():
+        item = {
+            'id': tid,
+            'name': info.get('filename', 'Unknown'),
+            'status': 'downloading',
+            'progress': info.get('progress', 0),
+            'speed': info.get('speed', 0),
+            'speed_human': format_speed(info.get('speed', 0)),
+            'size': info.get('size', 0),
+            'size_human': format_bytes(info.get('size', 0)),
+            'downloaded': info.get('downloaded', 0),
+            'eta_seconds': int((info.get('size', 0) - info.get('downloaded', 0)) / info.get('speed', 1)) if info.get('speed', 0) > 0 else None
+        }
+        active_list.append(item)
+    
+    # Pending items
+    pending_list = []
+    for item in pending_display:
+        pending_list.append({
+            'id': item.get('id', ''),
+            'name': item.get('name', 'Unknown'),
+            'status': 'pending',
+            'progress': 0,
+            'speed': 0
+        })
+    
+    # Transcode queue
+    transcode_list = []
+    for tid, info in active_transcodes.items():
+        transcode_list.append({
+            'id': tid,
+            'name': info.get('filename', 'Unknown'),
+            'status': 'transcoding',
+            'progress': info.get('progress', 0),
+            'speed': info.get('speed', '0x')
+        })
+    
+    return jsonify({
+        'success': True,
+        'active': active_list,
+        'pending': pending_list,
+        'transcode': transcode_list,
+        'counts': {
+            'active': len(active_list),
+            'pending': len(pending_list),
+            'transcode': len(transcode_list)
+        }
+    })
+
+
+@app.route('/api/v1/queue/add', methods=['POST'])
+@api_key_required
+def api_v1_queue_add():
+    """
+    Add item to download queue.
+    Requires: server_id, item_id
+    Optional: path (download destination)
+    """
+    data = request.json or {}
+    server_id = data.get('server_id')
+    item_id = data.get('item_id')
+    custom_path = data.get('path')
+    
+    if not server_id or not item_id:
+        return jsonify({
+            'success': False,
+            'error': 'Missing required fields: server_id, item_id'
+        }), 400
+    
+    cfg = load_config()
+    servers = cfg.get('servers', [])
+    
+    # Find server
+    server = None
+    for s in servers:
+        if s.get('id') == server_id or s.get('name') == server_id:
+            server = s
+            break
+    
+    if not server:
+        return jsonify({
+            'success': False,
+            'error': f'Server not found: {server_id}'
+        }), 404
+    
+    # Determine download path
+    base_path = custom_path or cfg.get('download_path', '/storage')
+    
+    # Generate task ID and start download
+    tid = generate_id()
+    
+    try:
+        # Start resolve in background
+        threading.Thread(
+            target=resolve_and_download,
+            args=(server, item_id, base_path, tid, cfg.get('speed_limit', 0)),
+            daemon=True
+        ).start()
+        
+        log(f"📡 [API] Download queued via API: item={item_id} server={server.get('name')}")
+        
+        return jsonify({
+            'success': True,
+            'task_id': tid,
+            'message': f'Download queued for item {item_id}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/v1/queue/<task_id>', methods=['DELETE'])
+@api_key_required
+def api_v1_queue_remove(task_id):
+    """Remove/cancel a download by task ID"""
+    global pending_display, download_cancel_flags
+    
+    cancelled = False
+    
+    # Check active downloads
+    if task_id in active_downloads:
+        download_cancel_flags[task_id] = True
+        cancelled = True
+        log(f"📡 [API] Cancelling active download: {task_id}")
+    
+    # Check pending
+    with download_lock:
+        before = len(pending_display)
+        pending_display = [p for p in pending_display if p.get('id') != task_id]
+        if len(pending_display) < before:
+            cancelled = True
+            log(f"📡 [API] Removed pending download: {task_id}")
+    
+    if cancelled:
+        return jsonify({
+            'success': True,
+            'message': f'Download {task_id} cancelled'
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'error': f'Task not found: {task_id}'
+        }), 404
+
+
+@app.route('/api/v1/queue/pause', methods=['POST'])
+@api_key_required
+def api_v1_queue_pause():
+    """Pause all downloads"""
+    global is_paused
+    is_paused = True
+    log(f"📡 [API] Downloads paused via API")
+    
+    return jsonify({
+        'success': True,
+        'paused': True,
+        'message': 'Downloads paused'
+    })
+
+
+@app.route('/api/v1/queue/resume', methods=['POST'])
+@api_key_required
+def api_v1_queue_resume():
+    """Resume downloads"""
+    global is_paused
+    is_paused = False
+    log(f"📡 [API] Downloads resumed via API")
+    
+    return jsonify({
+        'success': True,
+        'paused': False,
+        'message': 'Downloads resumed'
+    })
+
+
+@app.route('/api/v1/queue/clear', methods=['POST'])
+@api_key_required
+def api_v1_queue_clear():
+    """Clear all pending downloads (does not cancel active)"""
+    global pending_display
+    
+    with download_lock:
+        count = len(pending_display)
+        pending_display = []
+    
+    # Also clear the task queue
+    cleared_from_queue = 0
+    try:
+        while not task_queue.empty():
+            task_queue.get_nowait()
+            cleared_from_queue += 1
+    except:
+        pass
+    
+    log(f"📡 [API] Cleared {count + cleared_from_queue} pending downloads via API")
+    
+    return jsonify({
+        'success': True,
+        'cleared': count + cleared_from_queue,
+        'message': f'Cleared {count + cleared_from_queue} pending downloads'
+    })
+
+
+@app.route('/api/v1/history', methods=['GET'])
+@api_key_required
+def api_v1_history():
+    """
+    Get download history.
+    Query params: limit (default 50), offset (default 0)
+    """
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    
+    # Clamp values
+    limit = min(max(limit, 1), 500)
+    offset = max(offset, 0)
+    
+    # Slice history
+    history_slice = download_history[offset:offset + limit]
+    
+    return jsonify({
+        'success': True,
+        'history': history_slice,
+        'total': len(download_history),
+        'limit': limit,
+        'offset': offset
+    })
+
+
+@app.route('/api/v1/servers', methods=['GET'])
+@api_key_required
+def api_v1_servers():
+    """List configured remote servers"""
+    cfg = load_config()
+    servers = cfg.get('servers', [])
+    
+    # Return server info without sensitive data
+    server_list = []
+    for s in servers:
+        server_list.append({
+            'id': s.get('id', s.get('name', '')),
+            'name': s.get('name', 'Unknown'),
+            'url': s.get('url', ''),
+            'type': 'jellyfin'  # Could detect emby later
+        })
+    
+    return jsonify({
+        'success': True,
+        'servers': server_list,
+        'count': len(server_list)
+    })
+
+
+@app.route('/api/v1/servers/<server_id>/browse', methods=['GET'])
+@api_key_required
+def api_v1_browse(server_id):
+    """
+    Browse server library.
+    Query params: parent_id (optional, for folders), limit (default 100)
+    """
+    cfg = load_config()
+    servers = cfg.get('servers', [])
+    
+    # Find server
+    server = None
+    for s in servers:
+        if s.get('id') == server_id or s.get('name') == server_id:
+            server = s
+            break
+    
+    if not server:
+        return jsonify({
+            'success': False,
+            'error': f'Server not found: {server_id}'
+        }), 404
+    
+    parent_id = request.args.get('parent_id')
+    limit = request.args.get('limit', 100, type=int)
+    
+    try:
+        url = server['url'].rstrip('/')
+        key = server.get('api_key') or server.get('key', '')
+        headers = get_auth_header(key)
+        
+        # Get user ID
+        user_resp = requests.get(f"{url}/Users", headers=headers, timeout=10)
+        if not user_resp.ok:
+            raise Exception("Could not get users")
+        users = user_resp.json()
+        user_id = users[0]['Id'] if users else None
+        
+        if not user_id:
+            raise Exception("No user found")
+        
+        # Build request
+        if parent_id:
+            endpoint = f"{url}/Users/{user_id}/Items"
+            params = {
+                'ParentId': parent_id,
+                'Limit': limit,
+                'Fields': 'ProviderIds,Overview'
+            }
+        else:
+            # Get root libraries
+            endpoint = f"{url}/Users/{user_id}/Items"
+            params = {
+                'Limit': limit,
+                'Fields': 'ProviderIds,Overview'
+            }
+        
+        resp = requests.get(endpoint, headers=headers, params=params, timeout=30)
+        
+        if not resp.ok:
+            raise Exception(f"Browse failed: {resp.status_code}")
+        
+        data = resp.json()
+        items = data.get('Items', [])
+        
+        # Format items
+        result_items = []
+        for item in items:
+            result_items.append({
+                'id': item.get('Id'),
+                'name': item.get('Name'),
+                'type': item.get('Type'),
+                'year': item.get('ProductionYear'),
+                'provider_ids': item.get('ProviderIds', {}),
+                'has_children': item.get('Type') in ['Series', 'Season', 'BoxSet', 'Folder', 'CollectionFolder']
+            })
+        
+        return jsonify({
+            'success': True,
+            'items': result_items,
+            'total': data.get('TotalRecordCount', len(items)),
+            'parent_id': parent_id
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/v1/servers/<server_id>/search', methods=['GET'])
+@api_key_required
+def api_v1_search(server_id):
+    """
+    Search server library.
+    Query params: q (search query), limit (default 50)
+    """
+    cfg = load_config()
+    servers = cfg.get('servers', [])
+    
+    # Find server
+    server = None
+    for s in servers:
+        if s.get('id') == server_id or s.get('name') == server_id:
+            server = s
+            break
+    
+    if not server:
+        return jsonify({
+            'success': False,
+            'error': f'Server not found: {server_id}'
+        }), 404
+    
+    query = request.args.get('q', '')
+    limit = request.args.get('limit', 50, type=int)
+    
+    if not query:
+        return jsonify({
+            'success': False,
+            'error': 'Missing search query (q parameter)'
+        }), 400
+    
+    try:
+        url = server['url'].rstrip('/')
+        key = server.get('api_key') or server.get('key', '')
+        headers = get_auth_header(key)
+        
+        # Get user ID
+        user_resp = requests.get(f"{url}/Users", headers=headers, timeout=10)
+        users = user_resp.json() if user_resp.ok else []
+        user_id = users[0]['Id'] if users else None
+        
+        if not user_id:
+            raise Exception("No user found")
+        
+        # Search
+        resp = requests.get(
+            f"{url}/Users/{user_id}/Items",
+            headers=headers,
+            params={
+                'SearchTerm': query,
+                'Limit': limit,
+                'Recursive': 'true',
+                'IncludeItemTypes': 'Movie,Series,Episode',
+                'Fields': 'ProviderIds,Overview'
+            },
+            timeout=30
+        )
+        
+        if not resp.ok:
+            raise Exception(f"Search failed: {resp.status_code}")
+        
+        data = resp.json()
+        items = data.get('Items', [])
+        
+        # Format results
+        results = []
+        for item in items:
+            results.append({
+                'id': item.get('Id'),
+                'name': item.get('Name'),
+                'type': item.get('Type'),
+                'year': item.get('ProductionYear'),
+                'series_name': item.get('SeriesName'),
+                'provider_ids': item.get('ProviderIds', {}),
+                'overview': item.get('Overview', '')[:200] + '...' if item.get('Overview') else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'query': query,
+            'results': results,
+            'total': len(results)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/v1/stats', methods=['GET'])
+@api_key_required
+def api_v1_stats():
+    """Get download and transcode statistics"""
+    cfg = load_config()
+    
+    # Get download stats from in-memory (includes session and persistent)
+    dl_stats = get_download_stats()
+    
+    # Get transcode stats from in-memory
+    with transcode_stats_lock:
+        tc_stats = dict(transcode_stats)
+    
+    # Calculate average reduction percentage
+    avg_reduction = 0
+    if tc_stats.get('total_original_bytes', 0) > 0:
+        avg_reduction = round((tc_stats.get('total_space_saved_bytes', 0) / tc_stats.get('total_original_bytes', 0)) * 100, 1)
+    
+    return jsonify({
+        'success': True,
+        'downloads': {
+            'total_files': dl_stats.get('total_files', 0),
+            'total_bytes': dl_stats.get('total_bytes', 0),
+            'total_human': format_bytes(dl_stats.get('total_bytes', 0)),
+            'session_files': dl_stats.get('session_files', 0),
+            'session_bytes': dl_stats.get('session_bytes', 0),
+            'session_human': format_bytes(dl_stats.get('session_bytes', 0)),
+            'by_server': dl_stats.get('by_server', {}),
+            'last_updated': dl_stats.get('last_updated')
+        },
+        'transcode': {
+            'files_processed': tc_stats.get('files_transcoded', 0),
+            'files_skipped': tc_stats.get('files_skipped_larger', 0),
+            'original_bytes': tc_stats.get('total_original_bytes', 0),
+            'transcoded_bytes': tc_stats.get('total_transcoded_bytes', 0),
+            'space_saved_bytes': tc_stats.get('total_space_saved_bytes', 0),
+            'space_saved_human': format_bytes(tc_stats.get('total_space_saved_bytes', 0)),
+            'average_reduction_percent': avg_reduction
+        }
+    })
+
+
+@app.route('/api/v1/docs', methods=['GET'])
+def api_v1_docs():
+    """API documentation endpoint (no auth required)"""
+    docs = {
+        'name': 'JellyLooter API',
+        'version': 'v1',
+        'app_version': VERSION,
+        'auth': {
+            'method': 'API Key',
+            'header': 'X-Api-Key (recommended)',
+            'query_param': 'apikey (less secure - may appear in logs)',
+            'generate': 'POST /api/v1/key/generate (requires login)',
+            'note': 'API keys are shown only once when generated. Store securely!'
+        },
+        'security': {
+            'encryption': 'API keys are encrypted at rest',
+            'rate_limiting': 'Brute force protection - 10 failed attempts triggers 5 minute lockout',
+            'best_practices': [
+                'Use X-Api-Key header instead of query param',
+                'Regenerate key if compromised',
+                'Use HTTPS in production',
+                'Restrict network access if possible'
+            ]
+        },
+        'endpoints': {
+            'status': {
+                'GET /api/v1/status': 'Get queue status, speeds, disk space'
+            },
+            'queue': {
+                'GET /api/v1/queue': 'Get current download queue',
+                'POST /api/v1/queue/add': 'Add item to queue (body: server_id, item_id, path?)',
+                'DELETE /api/v1/queue/<task_id>': 'Cancel/remove download',
+                'POST /api/v1/queue/pause': 'Pause all downloads',
+                'POST /api/v1/queue/resume': 'Resume downloads',
+                'POST /api/v1/queue/clear': 'Clear pending queue'
+            },
+            'history': {
+                'GET /api/v1/history': 'Get download history (params: limit, offset)'
+            },
+            'servers': {
+                'GET /api/v1/servers': 'List configured servers',
+                'GET /api/v1/servers/<id>/browse': 'Browse server library (params: parent_id, limit)',
+                'GET /api/v1/servers/<id>/search': 'Search server (params: q, limit)'
+            },
+            'stats': {
+                'GET /api/v1/stats': 'Get download and transcode statistics'
+            }
+        },
+        'integrations': {
+            'nzb360': 'Use Custom Downloader with base URL and API key in header',
+            'organizr': 'Add as custom tab with /api/v1/status widget',
+            'home_assistant': 'Poll /api/v1/status for sensor data'
+        }
+    }
+    
+    return jsonify(docs)
+
+
+# ============================================================================
+# End of API v1 Endpoints
+# ============================================================================
+
+
 @app.route('/api/transcode_test_mode', methods=['GET', 'POST'])
 @login_required
 def transcode_test_mode():
@@ -4560,6 +5732,14 @@ def config_api():
     cfg = load_config()
     # Add license tier to config for frontend
     cfg['license_tier'] = get_license_tier()
+    
+    # SECURITY: Redact sensitive keys from API response
+    # These should never be sent to the frontend
+    sensitive_keys = ['api_key']
+    for key in sensitive_keys:
+        if cfg.get(key):
+            cfg[key] = '***REDACTED***'
+    
     return jsonify(cfg)
 
 
@@ -4685,6 +5865,15 @@ def export_config():
     for arr_key in ['sonarr_api_key', 'radarr_api_key', 'lidarr_api_key']:
         if export_data.get(arr_key):
             export_data[arr_key] = '***MASKED***'
+    
+    # Mask external API key
+    if export_data.get('api_key'):
+        export_data['api_key'] = '***MASKED***'
+    
+    # Mask metadata API keys
+    for meta_key in ['tmdb_api_key', 'tvdb_api_key', 'omdb_api_key']:
+        if export_data.get(meta_key):
+            export_data[meta_key] = '***MASKED***'
     
     # Mask notification URLs (may contain tokens)
     if export_data.get('notification_urls'):
@@ -4860,15 +6049,15 @@ def get_stats():
             active_copy = dict(active_downloads)
             pending_count = len(pending_display)
         
-        # Calculate stats from history (outside lock)
-        total_bytes = 0
+        # Get persistent stats
+        dl_stats = get_download_stats()
+        
+        # Calculate today's stats from history (outside lock)
         today_count = 0
         today_bytes = 0
         
         for item in history_copy:
             size = item.get('size', 0)
-            if isinstance(size, (int, float)) and size > 0:
-                total_bytes += size
             
             # Check if download was today
             ts = item.get('timestamp', '')
@@ -4889,7 +6078,7 @@ def get_stats():
         # Calculate current speed from active downloads
         current_speed = 0
         for dl in active_copy.values():
-            speed = dl.get('speed', 0)
+            speed = dl.get('speed_raw', 0)  # Use raw bytes/sec
             if isinstance(speed, (int, float)):
                 current_speed += speed
         
@@ -4897,26 +6086,41 @@ def get_stats():
         queue_size = task_queue.qsize() + pending_count
         
         return jsonify({
-            'total_bytes': total_bytes,
-            'total_human': format_bytes(total_bytes) if total_bytes > 0 else '0 B',
+            # Persistent stats (all-time)
+            'total_files': dl_stats.get('total_files', 0),
+            'total_bytes': dl_stats.get('total_bytes', 0),
+            'total_human': format_bytes(dl_stats.get('total_bytes', 0)),
+            # Session stats (this run)
+            'session_files': dl_stats.get('session_files', 0),
+            'session_bytes': dl_stats.get('session_bytes', 0),
+            'session_human': format_bytes(dl_stats.get('session_bytes', 0)),
+            # Today stats
             'today_count': today_count,
             'today_bytes': today_bytes,
             'today_human': format_bytes(today_bytes) if today_bytes > 0 else '0 B',
+            # Live stats
             'current_speed': current_speed,
-            'current_speed_human': f"{current_speed / 1024:.1f} KB/s" if current_speed > 0 else "0 KB/s",
+            'current_speed_human': format_bytes(current_speed) + '/s' if current_speed > 0 else '0 B/s',
             'queue_size': queue_size,
-            'history_count': len(history_copy)
+            'history_count': len(history_copy),
+            # Per-server breakdown
+            'by_server': dl_stats.get('by_server', {}),
+            'last_updated': dl_stats.get('last_updated')
         })
     except Exception as e:
         log(f"Stats error: {e}")
         return jsonify({
+            'total_files': 0,
             'total_bytes': 0,
             'total_human': '0 B',
+            'session_files': 0,
+            'session_bytes': 0,
+            'session_human': '0 B',
             'today_count': 0,
             'today_bytes': 0,
             'today_human': '0 B',
             'current_speed': 0,
-            'current_speed_human': '0 KB/s',
+            'current_speed_human': '0 B/s',
             'queue_size': 0,
             'history_count': 0,
             'error': str(e)
@@ -4974,6 +6178,23 @@ def reset_transcode_stats():
     save_transcode_stats()
     log("Transcode statistics reset")
     return jsonify({'success': True, 'message': 'Transcode stats reset'})
+
+
+@app.route('/api/download_stats/reset', methods=['POST'])
+@login_required
+def reset_dl_stats():
+    """Reset download statistics"""
+    data = request.json or {}
+    session_only = data.get('session_only', False)
+    
+    reset_download_stats(session_only=session_only)
+    
+    if session_only:
+        log("📊 Session download statistics reset")
+    else:
+        log("📊 All download statistics reset")
+    
+    return jsonify({'success': True, 'message': 'Download stats reset', 'session_only': session_only})
 
 
 @app.route('/api/transcode_cache/status', methods=['POST'])
@@ -5133,7 +6354,12 @@ def resume_partial():
             'id': task_id,
             'name': f"🔄 {info.get('filename', 'Unknown')}"
         })
-    task_queue.put(task)
+    
+    # Route to server-specific queue or global queue
+    server = info.get('server', {})
+    server_id = server.get('id') or server.get('url', 'unknown')
+    server_name = server.get('name') or server.get('url', 'Unknown')
+    queue_to_server_or_global(task, server_id, server_name)
     
     log(f"🔄 Queued resume: {info.get('filename', 'Unknown')}")
     return jsonify({'success': True, 'message': f"Resuming {info.get('filename', 'Unknown')}"})
@@ -6460,6 +7686,7 @@ def get_collection_items():
 @login_required
 def batch_download():
     data = request.json
+    log(f"📥 batch_download called: {len(data.get('item_ids', []))} items")
     cfg = load_config()
     
     server = next(
@@ -7048,7 +8275,7 @@ def queue_item(server, item, base_path, tid, limit):
         else:
             task_series_ids = {}
         
-        task_queue.put({
+        task = {
             'url': f"{server['url']}/Items/{item['Id']}/Download",
             'filepath': filepath,
             'task_id': tid,
@@ -7059,7 +8286,12 @@ def queue_item(server, item, base_path, tid, limit):
             'item_type': item.get('Type', '').lower(),  # movie, episode, etc.
             'provider_ids': provider_ids,  # IMDB/TMDB/TVDB IDs for *arr integration
             'series_provider_ids': task_series_ids  # Series IDs for episodes (from fetched series data)
-        })
+        }
+        
+        # Route to server-specific queue or global queue (Pro feature)
+        server_id = server.get('id') or server.get('url', 'unknown')
+        server_name = server.get('name') or server.get('url', 'Unknown')
+        queue_to_server_or_global(task, server_id, server_name)
         
     except Exception as e:
         log(f"Queue Error: {e}")
@@ -8234,7 +9466,8 @@ def init_app():
 if __name__ == '__main__':
     init_app()
     load_cache_from_disk()
-    load_download_history()  # Load persistent download stats
+    load_download_history()  # Load persistent download history
+    load_download_stats()    # Load persistent download statistics
     load_transcode_stats()   # Load persistent transcode stats
     
     # Track uptime for health checks
@@ -8273,4 +9506,5 @@ if __name__ == '__main__':
     log(f"Download workers: {active_workers}, Transcode workers: {active_transcode_workers}")
     log(f"Speed limit: {cfg.get('speed_limit_kbs', 0)} KB/s")
     log(f"Auth: {'Enabled' if cfg.get('auth_enabled', False) else 'Disabled'}")
+    log(f"Task queue size: {task_queue.qsize()}, Target workers: {target_workers}")
     app.run(host='0.0.0.0', port=5000, threaded=True)
