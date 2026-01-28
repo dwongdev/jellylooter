@@ -1,62 +1,66 @@
 <?xml version="1.0"?>
 <Container version="2">
-  <n>JellyLooter</n>
-  <Repository>ghcr.io/jlightner86/jellylooter:latest</Repository>
-  <Registry>https://github.com/jlightner86/jellylooter</Registry>
-  <Branch>main</Branch>
-  <Network>bridge</Network>
-  <MyIP/>
-  <Shell>bash</Shell>
-  <Privileged>false</Privileged>
-  <Support>https://github.com/jlightner86/jellylooter/issues</Support>
-  <Project>https://github.com/jlightner86/jellylooter</Project>
-  <Overview>JellyLooter v3.1.0 - Sync media from remote Jellyfin/Emby servers to local storage.
+    <Name>JellyLooter</Name>
+    <Repository>ghcr.io/jlightner86/jellylooter:latest</Repository>
+    <Registry>https://github.com/jlightner86/jellylooter</Registry>
+    <Network>bridge</Network>
+    <Shell>bash</Shell>
+    <Privileged>false</Privileged>
+    <Support>https://github.com/jlightner86/jellylooter/issues</Support>
+    <Project>https://github.com/jlightner86/jellylooter</Project>
+    <Overview>JellyLooter v3.2.0 - Sync media from remote Jellyfin/Emby servers to local storage.
 
-FREE Features:
-- Browse and download from 2 remote servers
-- Library search - find movies/shows by name
-- Duplicate detection with local library scanning
-- Rating overlays on posters (IMDB/TMDB ratings)
-- Quality badges (4K, 1080p, HDR, Dolby Vision, Atmos)
-- Content rating badges (PG-13, R, TV-MA)
-- Time format option (12-hour or 24-hour)
-- 30+ timezone options
-- Mobile-friendly responsive UI with hamburger menu
-- Download history, search/filter, keyboard shortcuts
-- Auto-retry failed downloads
-- Multi-language support (English, Spanish, German)
+         NEW in v3.2.0:
+        - External API access (NZB360, Organizr, Home Assistant compatible)
+        - 6 Dashboard layouts (Classic, Compact, Cards, List, Minimal, Large)
+        - Redesigned tabbed Settings UI
+        - Per-server workers (Pro) - download from multiple servers simultaneously
+        - Resource limits (Pro) - CPU threads, process priority, I/O priority
+        - Enhanced download statistics with per-server breakdown
+      
+        FREE Features:
+      
+        - Browse and download from 2 remote servers
+        - Library search - find movies/shows by name
+        - Duplicate detection with local library scanning
+        - Rating overlays on posters (IMDB/TMDB ratings)
+        - Quality badges (4K, 1080p, HDR, Dolby Vision, Atmos)
+        - Content rating badges (PG-13, R, TV-MA)
+        - Time format option (12-hour or 24-hour)
+        - 30+ timezone options
+        - Mobile-friendly responsive UI with hamburger menu
+        - Download history, search/filter, keyboard shortcuts
+        - Auto-retry failed downloads
+        - Multi-language support (English, Spanish, German)
+      
+        PRO Features ($10 lifetime):
+      
+        - Unlimited servers and sync mappings
+        - Per-server workers - each server gets dedicated download pool
+        - Resource limits - control CPU, I/O, memory for NAS/low-power devices
+        - Notifications (Discord, Telegram, 80+ services)
+        - GPU transcoding (NVIDIA NVENC, Intel QuickSync, AMD VAAPI)
+        - Transcoding presets: H.264, H.265/HEVC, AVI, Mobile, 4K Optimized
+        - Transcode cache drive support (use fast SSD)
+        - Download and bandwidth scheduling
+        - *arr integration (Sonarr/Radarr auto-add and folder naming)
+        - Intelligent path mapping auto-detection
+        - Custom themes (Jellyfin, Plex, Emby, Christmas, Custom)
+        - Multiple local servers for duplicate detection
+        - Analytics dashboard
 
-PRO Features ($10 lifetime):
-- Unlimited servers and sync mappings
-- Notifications (Discord, Telegram, 80+ services)
-- GPU transcoding (NVIDIA NVENC, Intel QuickSync, AMD VAAPI)
-- Transcoding presets: H.264, H.265/HEVC, AVI, Mobile, 4K Optimized
-- Transcode cache drive support (use fast SSD)
-- Download and bandwidth scheduling
-- *arr integration (Sonarr/Radarr auto-add and folder naming)
-- Intelligent path mapping auto-detection
-- Custom themes (Jellyfin, Plex, Emby, Christmas, Custom)
-- Multiple local servers for duplicate detection
-- Analytics dashboard
+        Get Pro: https://lightwave43.gumroad.com/l/rmtmrr
 
-Get Pro: https://lightwave43.gumroad.com/l/rmtmrr
-
-Confirmed working on Unraid 7.0+ / 7.2.2</Overview>
-  <Category>MediaApp:Other MediaServer:Other Downloaders:</Category>
-  <WebUI>http://[IP]:[PORT:5000]</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/jlightner86/jellylooter/main/jellylooter.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/jlightner86/jellylooter/main/icon.png</Icon>
-  <ExtraParams/>
-  <PostArgs/>
-  <CPUset/>
-  <DateInstalled></DateInstalled>
-  <DonateText>Get Pro License</DonateText>
-  <DonateLink>https://lightwave43.gumroad.com/l/rmtmrr</DonateLink>
-  <Requires/>
-  <Config Name="Web UI Port" Target="5000" Default="5000" Mode="tcp" Description="Port for the web interface" Type="Port" Display="always" Required="true" Mask="false">5000</Config>
-  <Config Name="Config Path" Target="/config" Default="/mnt/user/appdata/jellylooter" Mode="rw" Description="Path to store configuration files" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/jellylooter</Config>
-  <Config Name="Storage Path" Target="/storage" Default="/mnt/user" Mode="rw" Description="Path to your media storage (where downloads will be saved)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user</Config>
-  <Config Name="Cache Path (Pro)" Target="/cache" Default="/mnt/cache" Mode="rw" Description="(Pro) Path to cache drive for faster transcoding - download to cache, transcode, then move to array" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/cache</Config>
-  <Config Name="Timezone" Target="TZ" Default="America/Chicago" Mode="" Description="Your timezone (e.g., America/New_York, Europe/London). Also configurable in UI Settings." Type="Variable" Display="always" Required="false" Mask="false">America/Chicago</Config>
-  <Config Name="NVIDIA_VISIBLE_DEVICES" Target="NVIDIA_VISIBLE_DEVICES" Default="" Mode="" Description="(Pro GPU) Set to 'all' or GPU UUID for NVIDIA transcoding. Also add --runtime=nvidia to Extra Parameters." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+        Confirmed working on Unraid 7.0+ / 7.2.2</Overview>
+    <Category>MediaApp:Other MediaServer:Other Downloaders:</Category>
+    <WebUI>http://[IP]:[PORT:5000]</WebUI>
+    <TemplateURL>https://raw.githubusercontent.com/jlightner86/jellylooter/main/jellylooter.xml</TemplateURL>
+    <Icon>https://raw.githubusercontent.com/jlightner86/jellylooter/main/icon.png</Icon>
+    <DonateText>Get Pro License</DonateText>
+    <DonateLink>https://lightwave43.gumroad.com/l/rmtmrr</DonateLink>
+    <Config Name="Web UI Port" Target="5000" Default="5000" Mode="tcp" Description="Port for the web interface" Type="Port" Display="always" Required="true" Mask="false">5000</Config>
+    <Config Name="Config Path" Target="/config" Default="/mnt/user/appdata/jellylooter" Mode="rw" Description="Path to store configuration files" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/jellylooter</Config>
+    <Config Name="Storage Path" Target="/storage" Default="" Mode="rw" Description="Path to your media storage (where downloads will be saved)" Type="Path" Display="always" Required="true" Mask="false"/>
+    <Config Name="Cache Path (Pro)" Target="/cache" Default="" Mode="rw" Description="(Pro) Path to cache drive for faster transcoding - download to cache, transcode, then move to array" Type="Path" Display="advanced" Required="true" Mask="false"/>
+    <Config Name="Nvidia Visible Devices" Target="NVIDIA_VISIBLE_DEVICES" Default="" Mode="" Description="(Pro GPU) Set to 'all' or GPU UUID for NVIDIA transcoding. Also add --runtime=nvidia to Extra Parameters." Type="Variable" Display="advanced" Required="false" Mask="false"/>
 </Container>
